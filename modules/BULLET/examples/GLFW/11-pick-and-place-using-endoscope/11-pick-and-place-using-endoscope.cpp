@@ -888,8 +888,10 @@ int main(int argc, char* argv[])
     int h = 0.5 * mode->height;
     int x = 0.5 * (mode->width - w);
     int y = 0.5 * (mode->height - h);
+    stereoMode = C_STEREO_DISABLED;
     if (num_monitors>1)
     {
+      stereoMode = C_STEREO_PASSIVE_LEFT_RIGHT;
       const GLFWvidmode* mode2 = glfwGetVideoMode(monitors[1]);
       w = 0.65 * mode2->width;
       h = 0.7 * mode2->height;
