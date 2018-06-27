@@ -24,6 +24,7 @@ https://github.com/WPI-AIM/wpi-dvrk-ros.git
 Oculus support requires the following repositories:
 
 For oculus drivers: https://github.com/OpenHMD/OpenHMD.git
+
 Oculus-ROS bindings: https://github.com/ankur-agrawal/openhmd_ros.git
 
 ## Note
