@@ -36,7 +36,7 @@
     POSSIBILITY OF SUCH DAMAGE.
 
     \author    <http://www.aimlab.wpi.edu>
-    \author    Adnan Munawar
+    \author    Adnan Munawar, Ankur Agrawal
     \version   3.2.1 $Rev: 1869 $
 */
 //===========================================================================
@@ -928,8 +928,6 @@ int main(int argc, char* argv[])
     // get width and height of window
     glfwGetWindowSize(g_window, &g_width, &g_height);
 
-    std::cout << g_width <<'\t' << g_height << '\n';
-
     // set position of window
     glfwSetWindowPos(g_window, x, y);
 
@@ -1044,33 +1042,33 @@ int main(int argc, char* argv[])
     double size = 0.40;
     cMaterial meshMat;
 
-    g_bulletTorus = new cBulletMultiMesh(g_bulletWorld, "Torus");
-    g_bulletTorus->loadFromFile(RESOURCE_PATH("../resources/models/gear/torus.3ds"));
-    g_bulletTorus->scale(0.075);
-    g_bulletWorld->addChild(g_bulletTorus);
-    g_bulletTorus->buildContactTriangles(0.001);
-    g_bulletTorus->setMass(0.15);
-    g_bulletTorus->estimateInertia();
-    g_bulletTorus->buildDynamicModel();
-    meshMat.setBlueLightSteel();
-    g_bulletTorus->setMaterial(meshMat);
-    g_bulletTorus->m_bulletRigidBody->setFriction(1);
-    g_bulletTorus->setLocalPos(cVector3d(0,0,0.03));
-
-    for (int i=0; i<25; i++)
-    {
-      g_bulletCylinder[i] = new cBulletCylinder(g_bulletWorld, 0.3, 0.02);
-      g_bulletWorld->addChild(g_bulletCylinder[i]);
-      g_bulletCylinder[i]->setLocalPos(cVector3d((double)(0.3*(i/5 - 2)),(double)(0.3*((i%5)-2)),0.151));
-      g_bulletCylinder[i]->buildContactTriangles(0.001);
-      // g_bulletCylinder[i]->setMass(1);
-      // g_bulletCylinder[i]->estimateInertia();
-      g_bulletCylinder[i]->buildDynamicModel();
-      meshMat.setBlueSteel();
-      g_bulletCylinder[i]->setMaterial(meshMat);
-      g_bulletCylinder[i]->m_bulletRigidBody->setFriction(1);
-      g_bulletCylinder[i]->setStatic(true);
-    }
+    // g_bulletTorus = new cBulletMultiMesh(g_bulletWorld, "Torus");
+    // g_bulletTorus->loadFromFile(RESOURCE_PATH("../resources/models/gear/torus.3ds"));
+    // g_bulletTorus->scale(0.075);
+    // g_bulletWorld->addChild(g_bulletTorus);
+    // g_bulletTorus->buildContactTriangles(0.001);
+    // g_bulletTorus->setMass(0.15);
+    // g_bulletTorus->estimateInertia();
+    // g_bulletTorus->buildDynamicModel();
+    // meshMat.setBlueLightSteel();
+    // g_bulletTorus->setMaterial(meshMat);
+    // g_bulletTorus->m_bulletRigidBody->setFriction(1);
+    // g_bulletTorus->setLocalPos(cVector3d(0,0,0.03));
+    //
+    // for (int i=0; i<25; i++)
+    // {
+    //   g_bulletCylinder[i] = new cBulletCylinder(g_bulletWorld, 0.3, 0.02);
+    //   g_bulletWorld->addChild(g_bulletCylinder[i]);
+    //   g_bulletCylinder[i]->setLocalPos(cVector3d((double)(0.3*(i/5 - 2)),(double)(0.3*((i%5)-2)),0.151));
+    //   g_bulletCylinder[i]->buildContactTriangles(0.001);
+    //   // g_bulletCylinder[i]->setMass(1);
+    //   // g_bulletCylinder[i]->estimateInertia();
+    //   g_bulletCylinder[i]->buildDynamicModel();
+    //   meshMat.setBlueSteel();
+    //   g_bulletCylinder[i]->setMaterial(meshMat);
+    //   g_bulletCylinder[i]->m_bulletRigidBody->setFriction(1);
+    //   g_bulletCylinder[i]->setStatic(true);
+    // }
 
 
 
@@ -1082,20 +1080,20 @@ int main(int argc, char* argv[])
     //////////////////////////////////////////////////////////////////////////
 
     // create ground plane
-    g_bulletGround = new cBulletStaticPlane(g_bulletWorld, cVector3d(0.0, 0.0, 1.0), 0);
-
-    // add plane to world as we will want to make it visibe
-    g_bulletWorld->addChild(g_bulletGround);
-
-    // create a mesh plane where the static plane is located
-    cCreatePlane(g_bulletGround, 3.0, 3.0, g_bulletGround->getPlaneConstant() * g_bulletGround->getPlaneNormal());
-
-    // define some material properties and apply to mesh
-    cMaterial matGround;
-    matGround.setBlack();
-    matGround.m_emission.setGrayLevel(0);
-    g_bulletGround->setMaterial(matGround);
-    g_bulletGround->m_bulletRigidBody->setFriction(1);
+    // g_bulletGround = new cBulletStaticPlane(g_bulletWorld, cVector3d(0.0, 0.0, 1.0), 0);
+    //
+    // // add plane to world as we will want to make it visibe
+    // g_bulletWorld->addChild(g_bulletGround);
+    //
+    // // create a mesh plane where the static plane is located
+    // cCreatePlane(g_bulletGround, 3.0, 3.0, g_bulletGround->getPlaneConstant() * g_bulletGround->getPlaneNormal());
+    //
+    // // define some material properties and apply to mesh
+    // cMaterial matGround;
+    // matGround.setBlack();
+    // matGround.m_emission.setGrayLevel(0);
+    // g_bulletGround->setMaterial(matGround);
+    // g_bulletGround->m_bulletRigidBody->setFriction(1);
 
     //-----------------------------------------------------------------------
     // START SIMULATION
@@ -1112,12 +1110,12 @@ int main(int argc, char* argv[])
     g_bulletSimThread = new cThread();
     g_bulletSimThread->start(updateBulletSim, CTHREAD_PRIORITY_HAPTICS);
 
-    for (int i = 0 ; i < g_coordApp->m_num_devices ; i++){
-        g_labelDevRates[i] = new cLabel(font);
-        g_labelDevRates[i]->m_fontColor.setBlack();
-        g_labelDevRates[i]->setFontScale(0.8);
-        g_endoscope->m_camera->m_frontLayer->addChild(g_labelDevRates[i]);
-    }
+    // for (int i = 0 ; i < g_coordApp->m_num_devices ; i++){
+    //     g_labelDevRates[i] = new cLabel(font);
+    //     g_labelDevRates[i]->m_fontColor.setBlack();
+    //     g_labelDevRates[i]->setFontScale(0.8);
+    //     g_endoscope->m_camera->m_frontLayer->addChild(g_labelDevRates[i]);
+    // }
 
     // setup callback when application exits
     atexit(close);
@@ -1355,20 +1353,20 @@ void updateGraphics(void)
     /////////////////////////////////////////////////////////////////////
     // UPDATE WIDGETS
     /////////////////////////////////////////////////////////////////////
-    static int n_function_iterations=0;
-    n_function_iterations++;
-
-    cMaterial meshMat;
-    if (n_function_iterations%160<80)
-    {
-      meshMat.setYellow();
-      g_bulletCylinder[15]->setMaterial(meshMat);
-    }
-    else
-    {
-      meshMat.setBlueSteel();
-      g_bulletCylinder[15]->setMaterial(meshMat);
-    }
+    // static int n_function_iterations=0;
+    // n_function_iterations++;
+    //
+    // cMaterial meshMat;
+    // if (n_function_iterations%160<80)
+    // {
+    //   meshMat.setYellow();
+    //   g_bulletCylinder[15]->setMaterial(meshMat);
+    // }
+    // else
+    // {
+    //   meshMat.setBlueSteel();
+    //   g_bulletCylinder[15]->setMaterial(meshMat);
+    // }
 
     // update haptic and graphic rate data
     // g_labelTimes->setText("Wall Time: " + cStr(g_clockWorld.getCurrentTimeSeconds(),2) + " s" +

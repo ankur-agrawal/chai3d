@@ -190,4 +190,3 @@ void cBulletGripper::updateCmdFromROS(double dt){
         }
     }
 }
-
