@@ -50,17 +50,17 @@ std::string resourceRootGripper;
 
 namespace chai3d {
 
-cBulletGripper::cBulletGripper(cBulletWorld *bulletWorld, std::string a_gripperName):cBulletMultiMesh(bulletWorld, a_gripperName){
+cBulletGripper::cBulletGripper(cBulletWorld *bulletWorld, std::string a_gripperName, double a_scale):cBulletMultiMesh(bulletWorld, a_gripperName){
 
-
+    m_scale = a_scale;
     loadFromFile(RESOURCE_PATH("../resources/models/gripper/gripper_L1.3ds"));
-    scale(0.1);
-    setLocalPos(0.0,-0.2,0.0);
+    scale(0.1*m_scale);
+    setLocalPos(0.0,-0.2*m_scale,0.5);
 
     bulletMeshGripperL2 = new cBulletMultiMesh(bulletWorld);
     bulletMeshGripperL2->loadFromFile(RESOURCE_PATH("../resources/models/gripper/gripper_L1.3ds"));
-    bulletMeshGripperL2->scale(0.1);
-    bulletMeshGripperL2->setLocalPos(0.0,0.2,0.0);
+    bulletMeshGripperL2->scale(0.1*m_scale);
+    bulletMeshGripperL2->setLocalPos(0.0,0.2*m_scale,0.5);
     cMatrix3d rotMat;
     rotMat.setAxisAngleRotationDeg(1,0,0,180);
     bulletMeshGripperL2->setLocalRot(rotMat);
@@ -69,9 +69,9 @@ cBulletGripper::cBulletGripper(cBulletWorld *bulletWorld, std::string a_gripperN
 }
 
 void cBulletGripper::build(){
-    setMass(0.05);
+    setMass(0.05*m_scale);
     buildContactTriangles(0.001);
-    setShowFrame(true);
+    // setShowFrame(true);
     estimateInertia();
     buildDynamicModel();
     m_dynamicWorld->addChild(this);
@@ -79,15 +79,15 @@ void cBulletGripper::build(){
 
     bulletMeshGripperL2->setMass(0.05);
     bulletMeshGripperL2->buildContactTriangles(0.001);
-    bulletMeshGripperL2->setShowFrame(true);
+    // bulletMeshGripperL2->setShowFrame(true);
     bulletMeshGripperL2->estimateInertia();
     bulletMeshGripperL2->buildDynamicModel();
     m_dynamicWorld->addChild(bulletMeshGripperL2);
 
     axisA.setValue(0.0,0.0,1.0);
     axisB = -axisA;
-    pvtA.setValue(0.2,0.1,0.0);
-    pvtB.setValue(0.2,0.1,0.0);
+    pvtA.setValue(0.2*m_scale,0.1*m_scale,0.0);
+    pvtB.setValue(0.2*m_scale,0.1*m_scale,0.0);
     bulletHinge = new btHingeConstraint(*this->m_bulletRigidBody,
                                         *bulletMeshGripperL2->m_bulletRigidBody,
                                         pvtA, pvtB, axisA, axisB, true);
@@ -115,7 +115,7 @@ void cBulletGripper::set_gripper_angle(const double &angle){
 }
 
 void cBulletGripper::set_scale(double a_scale){
-    // Do nothing for now
+    m_scale=a_scale;
 }
 
 void cBulletGripper::set_surface_props(GripperSurfaceProperties &props){

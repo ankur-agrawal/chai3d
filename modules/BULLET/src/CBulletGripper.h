@@ -77,7 +77,7 @@ public:
 class cBulletWorld;
 class cBulletGripper:public cBulletMultiMesh{
 public:
-    cBulletGripper(cBulletWorld *bulletWorld, std::string gripper_name = "Gripper");
+    cBulletGripper(cBulletWorld *bulletWorld, std::string gripper_name = "Gripper", double a_scale = 1);
     ~cBulletGripper(){}
 
 public:
@@ -94,6 +94,7 @@ private:
     btVector3 axisA, axisB, pvtA, pvtB;
     cMaterial mat;
     double jaw_open_lim, jaw_close_lim;
+    double m_scale;
 };
 
 }

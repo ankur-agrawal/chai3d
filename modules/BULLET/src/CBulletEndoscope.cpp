@@ -68,7 +68,7 @@ cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
   m_camera->setStereoEyeSeparation(0.02);
   m_camera->setStereoFocalLength(2.0);
 
-  m_camera->setFieldViewAngleDeg(60);
+  m_camera->setFieldViewAngleDeg(30);
   // set vertical mirrored display mode
   m_camera->setMirrorVertical(false);
 
