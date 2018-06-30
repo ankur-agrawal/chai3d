@@ -1396,18 +1396,28 @@ void updateGraphics(void)
     /////////////////////////////////////////////////////////////////////
     static int n_function_iterations=0;
     static int target_cylinder=12;
+    static int count_success = -1;
 
     n_function_iterations++;
 
+    cMaterial meshMat;
+
     if (round_complete(target_cylinder))
     {
+      count_success++;
       std::cout << "Round Complete" << '\n';
+      meshMat.setRed();
+      g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
       list_cylinders.push_back(target_cylinder);
       target_cylinder=randomPick();
     }
 
-    cMaterial meshMat;
-    if (n_function_iterations%500<250)
+    if (count_success==5)
+    {
+      glfwSetWindowShouldClose(g_window, GLFW_TRUE);
+    }
+
+    if ((int) (10*g_clockWorld.getCurrentTimeSeconds()) % 10 < 5)
     {
       meshMat.setYellow();
       g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
