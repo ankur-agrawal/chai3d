@@ -48,14 +48,14 @@
 namespace chai3d{
 
 cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
-                 cVector3d rcm_pos, cMatrix3d rcm_ori,
-                 cVector3d camera_pos, cMatrix3d camera_ori,
+                 cVector3d a_rcm_pos, cMatrix3d a_rcm_rot,
+                 double yaw_joint, double pitch_joint, double insertion_length, double roll_joint,
                  std::string a_objName) : cBulletGenericObject(a_world, a_objName)
 {
   m_camera = new cCamera(a_world);
   a_world->addChild(m_camera);
-  m_camera->setLocalPos(camera_pos);
-  m_camera->setLocalRot(camera_ori);
+  rcm_pos = a_rcm_pos;
+  rcm_rot = a_rcm_rot;
 
   // set stereo mode
   m_camera->setStereoMode(C_STEREO_PASSIVE_LEFT_RIGHT);
@@ -72,6 +72,15 @@ cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
   // set vertical mirrored display mode
   m_camera->setMirrorVertical(false);
 
+  joint_angles.resize(4);
+  joint_angles[0] = yaw_joint;
+  joint_angles[1] = pitch_joint;
+  joint_angles[2] = insertion_length;
+  joint_angles[3] = roll_joint;
+
+  setCameraRotFromJoints();
+  setCameraPosFromJoints();
+
   oculus_ecm_rot_mat = cMatrix3d(0,1,0,0,0,1,1,0,0);
   cmd_rot_mat=cMatrix3d(1,0,0,0,1,0,0,0,1);
   cmd_rot_mat_last=cMatrix3d(1,0,0,0,1,0,0,0,1);
@@ -81,6 +90,47 @@ cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
   // setMass(0.5);
   // estimateInertia();
   // buildDynamicModel();
+}
+
+void cBulletEndoscope::setCameraRotFromJoints()
+{
+  cMatrix3d camera_in_rcm_rot;
+  camera_in_rcm_rot(0,0) = -cos(joint_angles[1])*sin(joint_angles[0]);
+  camera_in_rcm_rot(0,1) = cos(joint_angles[0])*cos(joint_angles[3]) - sin(joint_angles[0])*sin(joint_angles[1])*sin(joint_angles[3]);
+  camera_in_rcm_rot(0,2) = cos(joint_angles[0])*sin(joint_angles[3]) + cos(joint_angles[3])*sin(joint_angles[0])*sin(joint_angles[1]);
+  camera_in_rcm_rot(1,0) = sin(joint_angles[1]);
+  camera_in_rcm_rot(1,1) = -cos(joint_angles[1])*sin(joint_angles[3]);
+  camera_in_rcm_rot(1,2) = cos(joint_angles[1])*cos(joint_angles[3]);
+  camera_in_rcm_rot(2,0) = cos(joint_angles[1])*cos(joint_angles[0]);
+  camera_in_rcm_rot(2,1) = sin(joint_angles[0])*cos(joint_angles[3]) + cos(joint_angles[0])*sin(joint_angles[1])*sin(joint_angles[3]);
+  camera_in_rcm_rot(2,2) = sin(joint_angles[0])*sin(joint_angles[3]) - cos(joint_angles[3])*cos(joint_angles[0])*sin(joint_angles[1]);
+  camera_rot = cMul(rcm_rot, camera_in_rcm_rot);
+  // std::cout << camera_rot.str() << '\n';
+  m_camera->setLocalRot(camera_rot);
+}
+
+void cBulletEndoscope::setCameraPosFromJoints()
+{
+  cVector3d camera_pos_in_rcm;
+
+  camera_pos_in_rcm(0) = -cos(joint_angles[1])*sin(joint_angles[0])*joint_angles[2];
+  camera_pos_in_rcm(1) = -sin(joint_angles[1])*joint_angles[2];
+  camera_pos_in_rcm(2) = -cos(joint_angles[1])*cos(joint_angles[0])*joint_angles[2];
+
+  camera_pos = rcm_pos + cMul(rcm_rot, camera_pos_in_rcm);
+  // std::cout << camera_pos << '\n';
+  m_camera->setLocalPos(camera_pos);
+}
+
+void cBulletEndoscope::setJointsFromCameraRot()
+{
+  cMatrix3d camera_in_rcm_rot;
+  camera_in_rcm_rot = cMul(cTranspose(rcm_rot), camera_rot);
+  joint_angles[1] = atan2(camera_in_rcm_rot(1,0), sqrt(pow(camera_in_rcm_rot(0,0),2)+pow(camera_in_rcm_rot(2,0),2)));
+  joint_angles[0] = atan2(-camera_in_rcm_rot(0,0)/cos(joint_angles[1]), camera_in_rcm_rot(2,0)/cos(joint_angles[1]));
+  joint_angles[3] = atan2(-camera_in_rcm_rot(1,1)/cos(joint_angles[1]), camera_in_rcm_rot(1,2)/cos(joint_angles[1]));
+  if (abs(joint_angles[1])>1.5708)
+    std::cout << joint_angles[0]  << '\t' << joint_angles[1] << '\t' << joint_angles[2]  << '\t' << joint_angles[3]  << '\t'<< '\n';
 }
 
 void cBulletEndoscope::updateCmdFromROS(double dt){
@@ -102,29 +152,9 @@ void cBulletEndoscope::updateCmdFromROS(double dt){
         cVector3d force, torque;
         if (m_rosObjPtr->m_afCmd.pos_ctrl){
 
-            // cMatrix3d cur_rot_mat, cmd_rot_mat;
-            btTransform b_trans;
-            double rot_angle;
-            double K_lin = 10, B_lin = 1;
-            double K_ang = 5;
-
-            // m_bulletRigidBody->getMotionState()->getWorldTransform(b_trans);
-            // cur_pos.set(b_trans.getOrigin().getX(),
-            //             b_trans.getOrigin().getY(),
-            //             b_trans.getOrigin().getZ());
-            //
-            // cur_rot.x = b_trans.getRotation().getX();
-            // cur_rot.y = b_trans.getRotation().getY();
-            // cur_rot.z = b_trans.getRotation().getZ();
-            // cur_rot.w = b_trans.getRotation().getW();
-            // cur_rot.toRotMat(cur_rot_mat);
 
             cur_pos=m_camera->getLocalPos();
             cur_rot_mat=m_camera->getLocalRot();
-
-            // cmd_pos.set(m_rosObjPtr->m_afCmd.px,
-            //             m_rosObjPtr->m_afCmd.py,
-            //             m_rosObjPtr->m_afCmd.pz);
 
             cmd_rot.x = m_rosObjPtr->m_afCmd.qx;
             cmd_rot.y = m_rosObjPtr->m_afCmd.qy;
@@ -134,24 +164,16 @@ void cBulletEndoscope::updateCmdFromROS(double dt){
             cmd_rot.toRotMat(cmd_rot_mat);
 
             cmd_rot_mat.mul(oculus_ecm_rot_mat);
-            // m_dpos_prev = m_dpos;
-            // m_dpos = cmd_pos - cur_pos;
-            // m_ddpos = (m_dpos - m_dpos_prev)/dt;
-            // m_drot = cMul(cTranspose(cur_rot_mat), cmd_rot_mat);
-            // m_drot.toAxisAngle(rot_axis, rot_angle);
-            //
-            // force = K_lin * m_dpos + B_lin * m_ddpos;
-            // torque = cMul(K_ang * rot_angle, rot_axis);
-            // cur_rot_mat.mul(torque);
 
             // std::cout << cMul(cur_rot_mat, cMul(cTranspose(cmd_rot_mat_last), cmd_rot_mat)).str() << '\n';
 
-            // m_camera->setLocalRot(cMul(cur_rot_mat, cMul(oculus_ecm_rot_mat,cMul(cTranspose(cmd_rot_mat_last), cmd_rot_mat))));
-            m_camera->setLocalRot(cMul(cur_rot_mat, cMul(cTranspose(cmd_rot_mat_last), cmd_rot_mat)));
-            // m_camera->setLocalRot(cMul(oculus_ecm_rot_mat,cMul(cur_rot_mat, cMul(cTranspose(cmd_rot_mat_last), cmd_rot_mat))));
+            camera_rot = cMul(cur_rot_mat, cMul(cTranspose(cmd_rot_mat_last), cmd_rot_mat));
+
+            setJointsFromCameraRot();
+            setCameraRotFromJoints();
+            setCameraPosFromJoints();
 
             cmd_rot_mat_last=cmd_rot_mat;
-            // m_camera->setLocalRot(cMul(oculus_ecm_rot_mat,cmd_rot_mat));
         }
         else{
 

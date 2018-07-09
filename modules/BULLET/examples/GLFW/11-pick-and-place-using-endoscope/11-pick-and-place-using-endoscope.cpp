@@ -53,7 +53,7 @@ using namespace std;
 #include "CBullet.h"
 //---------------------------------------------------------------------------
 
-#include <openhmd.h>
+#include <openhmd/openhmd.h>
 
 //---------------------------------------------------------------------------
 // GENERAL SETTINGS
@@ -70,6 +70,7 @@ cStereoMode stereoMode = C_STEREO_PASSIVE_LEFT_RIGHT;
 
 // fullscreen mode
 bool fullscreen = false;
+std::vector<bool> fullscreens;
 
 // mirrored display
 bool mirroredDisplay = false;
@@ -157,18 +158,27 @@ cThread* g_bulletSimThread;
 
 // a handle to window display context
 GLFWwindow* g_window = NULL;
+GLFWwindow* g_window2 = NULL;
+std::vector<GLFWwindow*> g_windows;
 
 // current width of window
 int g_width = 0;
+int g_width2 = 0;
+std::vector<int> g_widths;
 
 // current height of window
 int g_height = 0;
+int g_height2 = 0;
+std::vector<int> g_heights;
 
 // swap interval for the display context (vertical synchronization)
 int g_swapInterval = 1;
 
 // root resource path
 string resourceRoot;
+
+//number of the oculus screen
+int g_oculus_index = -1;
 
 
 //---------------------------------------------------------------------------
@@ -192,7 +202,7 @@ void errorCallback(int error, const char* a_description);
 void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, int a_mods);
 
 // this function renders the scene
-void updateGraphics(void);
+void updateGraphics(int i);
 
 // this function contains the main haptics simulation loop
 void updateHaptics(void*);
@@ -839,7 +849,18 @@ std::shared_ptr<Coordination> g_coordApp;
 int main(int argc, char* argv[])
 {
 
-    // ohmd_context* ctx = ohmd_ctx_create();
+    // ohmd_context* ctx;
+    // ohmd_device* hmd;
+    //
+    // float fval;
+	  // int ival;
+    //
+    // ctx = ohmd_ctx_create();
+    // unsigned int num_devices = ohmd_ctx_probe(ctx);
+    //
+    // hmd = ohmd_list_open_device(ctx, 0);
+
+
 
     //-----------------------------------------------------------------------
     // INITIALIZATION
@@ -870,6 +891,7 @@ int main(int argc, char* argv[])
     cout << "-----------------------------------" << endl << endl << endl;
     cout << endl << endl;
 
+    // sleep(5);
     //-----------------------------------------------------------------------
     // OPEN GL - WINDOW DISPLAY
     //-----------------------------------------------------------------------
@@ -888,66 +910,105 @@ int main(int argc, char* argv[])
     int num_monitors;
     GLFWmonitor** monitors = glfwGetMonitors(&num_monitors);
 
+    std::cout << "number of monitors" << '\t' << num_monitors << '\n';
+
+    g_windows.resize(num_monitors);
+    g_widths.resize(num_monitors);
+    g_heights.resize(num_monitors);
+    fullscreens.resize(num_monitors);
     // compute desired size of window
-    const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    int w = 0.8 * mode->height;
-    int h = 0.5 * mode->height;
-    int x = 0.5 * (mode->width - w);
-    int y = 0.5 * (mode->height - h);
-    stereoMode = C_STEREO_DISABLED;
-    if (num_monitors>1)
-    {
-      stereoMode = C_STEREO_PASSIVE_LEFT_RIGHT;
-      const GLFWvidmode* mode2 = glfwGetVideoMode(monitors[1]);
-      w = 0.65 * mode2->width;
-      h = 0.7 * mode2->height;
-      x = mode->width + 0.5 * (mode2->width - w);
-      y = 0.5 * (mode2->height - h);
-    }
-
-
+    // const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    // int w = 0.8 * mode->height;
+    // int h = 0.5 * mode->height;
+    // int x = 0.5 * (mode->width - w);
+    // int y = 0.5 * (mode->height - h);
+    int w, h, x, y;
 
     // set OpenGL version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_STEREO, GL_FALSE);
 
-    // set active stereo mode
-    if (stereoMode == C_STEREO_ACTIVE)
+    for (int i=0; i<num_monitors; i++)
     {
-        glfwWindowHint(GLFW_STEREO, GL_TRUE);
+      fullscreens[i] = true;
+      const GLFWvidmode* mode = glfwGetVideoMode(monitors[i]);
+      int monitor_width_mm, monitor_height_mm, monitor_pos_x, monitor_pos_y;
+      glfwGetMonitorPhysicalSize(monitors[i], &monitor_width_mm, &monitor_height_mm);
+      if (monitor_width_mm == 119 && monitor_height_mm == 66)
+      {
+        g_oculus_index = i;
+      }
+
+      glfwGetMonitorPos(monitors[i], &monitor_pos_x, &monitor_pos_y);
+      std::cout << monitor_pos_x << '\t' << monitor_pos_y << '\n';
+
+      w = mode->width;
+      h = mode->height;
+      x = monitor_pos_x + 0.5 * (mode->width - w);
+      y = monitor_pos_y + 0.5 * (mode->height - h);
+
+      if (i==0)
+      {  // create display context
+        g_windows[i] = glfwCreateWindow(w, h, "CHAI3D", NULL, NULL);
+      }
+      else
+      {
+        g_windows[i] = glfwCreateWindow(w, h, "CHAI3D", NULL, g_windows[0]);
+      }
+      if (!g_windows[i])
+      {
+          cout << "failed to create window" << i << endl;
+          cSleepMs(1000);
+          glfwTerminate();
+          return 1;
+      }
+
+      // get width and height of window
+      glfwGetWindowSize(g_windows[i], &g_widths[i], &g_heights[i]);
+
+      // set position of window
+      glfwSetWindowPos(g_windows[i], x, y);
+
+      // set key callback
+      glfwSetKeyCallback(g_windows[i], keyCallback);
+
+      // set resize callback
+      glfwSetWindowSizeCallback(g_windows[i], windowSizeCallback);
+
+      // set current display context
+      glfwMakeContextCurrent(g_windows[i]);
+      // w = 0.65 * mode->width;
+      // // h = 0.7 * mode2->height;
+      // h=w;
+      // x = mode->width + 0.5 * (mode2->width - w);
+      // y = 0.5 * (mode2->height - h);
     }
-    else
-    {
-        glfwWindowHint(GLFW_STEREO, GL_FALSE);
-    }
-
-    // create display context
-    g_window = glfwCreateWindow(w, h, "CHAI3D", NULL, NULL);
-    if (!g_window)
-    {
-        cout << "failed to create window" << endl;
-        cSleepMs(1000);
-        glfwTerminate();
-        return 1;
-    }
-
-    // get width and height of window
-    glfwGetWindowSize(g_window, &g_width, &g_height);
-
-    // set position of window
-    glfwSetWindowPos(g_window, x, y);
-
-    // set key callback
-    glfwSetKeyCallback(g_window, keyCallback);
-
-    // set resize callback
-    glfwSetWindowSizeCallback(g_window, windowSizeCallback);
-
-    // set current display context
-    glfwMakeContextCurrent(g_window);
 
     // sets the swap interval for the current display context
     glfwSwapInterval(g_swapInterval);
+
+    // g_window2 = glfwCreateWindow(w, h, "CHAI3D", NULL, g_window);
+    // if (!g_window2)
+    // {
+    //     cout << "failed to create window2" << endl;
+    //     cSleepMs(1000);
+    //     glfwTerminate();
+    //     return 1;
+    // }
+    //
+    // glfwGetWindowSize(g_window2, &g_width2, &g_height2);
+    //
+    // glfwSetWindowPos(g_window2, x+50, y+50);
+    //
+    //
+    // glfwSetKeyCallback(g_window2, keyCallback);
+    //
+    //
+    // glfwSetWindowSizeCallback(g_window2, windowSizeCallback);
+    //
+    //
+    // glfwMakeContextCurrent(g_window2);
 
     // initialize GLEW library
 #ifdef GLEW_VERSION
@@ -969,9 +1030,11 @@ int main(int argc, char* argv[])
 
     // set the background color of the environment
     g_bulletWorld->m_backgroundColor.setGrayDim();
+    // g_bulletWorld->m_backgroundColor.setWhite();
 
     // create a camera and insert it into the virtual world
-    g_endoscope = new cBulletEndoscope(g_bulletWorld, cVector3d(0,0,2.5), cMatrix3d(1,0,0,0,1,0,0,0,1), cVector3d(0,0,2), cMatrix3d(0,1,0,0,0,1,1,0,0), "ecm");
+    g_endoscope = new cBulletEndoscope(g_bulletWorld, cVector3d(0,0,2.5), cMatrix3d(1,0,0,0,1,0,0,0,1), 0, 0, 0.5, 0, "ecm");
+
 
     // g_camera = new cCamera(g_bulletWorld);
     // g_bulletWorld->addChild(g_camera);
@@ -982,8 +1045,6 @@ int main(int argc, char* argv[])
                 cVector3d(0.0, 0.0, 1.0));   // direction of the "up" vector
 
     // std::cout << g_endoscope->m_camera->getLocalRot().str(2) << '\n';
-
-    g_endoscope->m_camera->setStereoMode(stereoMode);
 
     // create a light source
     g_light = new cSpotLight(g_bulletWorld);
@@ -1013,33 +1074,11 @@ int main(int argc, char* argv[])
     // set light cone half angle
     g_light->setCutOffAngleDeg(45);
 
-
-    //--------------------------------------------------------------------------
-    // WIDGETS
-    //--------------------------------------------------------------------------
-
-    // create a font
-    cFontPtr font = NEW_CFONTCALIBRI20();
-
-    // create a label to display the haptic and graphic rate of the simulation
-    // g_labelRates = new cLabel(font);
-    // g_labelTimes = new cLabel(font);
-    // g_labelModes = new cLabel(font);
-    // g_labelBtnAction = new cLabel(font);
-    // g_labelRates->m_fontColor.setBlack();
-    // g_labelTimes->m_fontColor.setBlack();
-    // g_labelModes->m_fontColor.setBlack();
-    // g_labelBtnAction->m_fontColor.setBlack();
-    // g_camera->m_frontLayer->addChild(g_labelRates);
-    // g_camera->m_frontLayer->addChild(g_labelTimes);
-    // g_camera->m_frontLayer->addChild(g_labelModes);
-    // g_camera->m_frontLayer->addChild(g_labelBtnAction);
-
     //////////////////////////////////////////////////////////////////////////
     // BULLET WORLD
     //////////////////////////////////////////////////////////////////////////
     // set some gravity
-    g_bulletWorld->setGravity(cVector3d(0.0, 0.0, -9.8));
+    g_bulletWorld->setGravity(cVector3d(0.0, 0.0, -9.81));
 
 
     //////////////////////////////////////////////////////////////////////////
@@ -1116,13 +1155,6 @@ int main(int argc, char* argv[])
     g_bulletSimThread = new cThread();
     g_bulletSimThread->start(updateBulletSim, CTHREAD_PRIORITY_HAPTICS);
 
-    // for (int i = 0 ; i < g_coordApp->m_num_devices ; i++){
-    //     g_labelDevRates[i] = new cLabel(font);
-    //     g_labelDevRates[i]->m_fontColor.setBlack();
-    //     g_labelDevRates[i]->setFontScale(0.8);
-    //     g_endoscope->m_camera->m_frontLayer->addChild(g_labelDevRates[i]);
-    // }
-
     // setup callback when application exits
     atexit(close);
 
@@ -1132,29 +1164,43 @@ int main(int argc, char* argv[])
     //--------------------------------------------------------------------------
 
     // call window size callback at initialization
-    windowSizeCallback(g_window, g_width, g_height);
+    // windowSizeCallback(g_window, g_width, g_height);
+    // windowSizeCallback(g_window2, g_width2, g_height2);
 
     // main graphic loop
-    while (!glfwWindowShouldClose(g_window))
+    bool flag =1;
+    while (flag)
     {
         // get width and height of window
-        glfwGetWindowSize(g_window, &g_width, &g_height);
 
-        // render graphics
-        updateGraphics();
+        for (int i=0; i<num_monitors; i++)
+        {
+          if (glfwWindowShouldClose(g_windows[i]))
+          {
+            flag=0;
+            break;
+          }
+          // set current display context
+          glfwMakeContextCurrent(g_windows[i]);
+          glfwGetWindowSize(g_windows[i], &g_widths[i], &g_heights[i]);
 
-        // swap buffers
-        glfwSwapBuffers(g_window);
+          // render graphics
+          updateGraphics(i);
 
+          // swap buffers
+          glfwSwapBuffers(g_windows[i]);
+        }
         // process events
         glfwPollEvents();
 
-        // signal frequency counter
         g_freqCounterGraphics.signal(1);
     }
 
-    // close window
-    glfwDestroyWindow(g_window);
+    for (int i=0; i<num_monitors; i++)
+    {
+        // close window
+        glfwDestroyWindow(g_windows[i]);
+    }
 
     // terminate GLFW library
     glfwTerminate();
@@ -1168,8 +1214,9 @@ int main(int argc, char* argv[])
 void windowSizeCallback(GLFWwindow* a_window, int a_width, int a_height)
 {
     // update window size
-    g_width = a_width;
-    g_height = a_height;
+    int pos = std::find(g_windows.begin(), g_windows.end(), a_window) - g_windows.begin();
+    g_widths[pos] = a_width;
+    g_heights[pos] = a_height;
 }
 
 //---------------------------------------------------------------------------
@@ -1198,37 +1245,39 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
     // option - toggle fullscreen
     else if (a_key == GLFW_KEY_F)
     {
+
+        int index = std::find(g_windows.begin(), g_windows.end(), a_window) - g_windows.begin();
+
         // toggle state variable
-        fullscreen = !fullscreen;
+        fullscreens[index] = !fullscreens[index];
+
+        int n, pos_x, pos_y;
+        GLFWmonitor** monitors = glfwGetMonitors(&n);
 
         // get handle to monitor
-        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        GLFWmonitor* monitor = monitors[index];
 
         // get information about monitor
         const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        glfwGetMonitorPos(monitors[index], &pos_x, &pos_y);
 
         // set fullscreen or window mode
-        if (fullscreen)
+        if (fullscreens[index])
         {
-            glfwSetWindowMonitor(g_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-            glfwSwapInterval(g_swapInterval);
+            // glfwSetWindowSize(a_window, mode->width, mode->height);
+            glfwSetWindowMonitor(a_window, monitor, pos_x, pos_y, mode->width, mode->height, mode->refreshRate);
+            // glfwSwapInterval(g_swapInterval);
         }
         else
         {
-            int w = 0.8 * mode->height;
-            int h = 0.5 * mode->height;
-            int x = 0.5 * (mode->width - w);
-            int y = 0.5 * (mode->height - h);
-            glfwSetWindowMonitor(g_window, NULL, x, y, w, h, mode->refreshRate);
-            glfwSwapInterval(g_swapInterval);
+            int w = 0.1 * mode->height;
+            int h = 0.1 * mode->height;
+            int x = pos_x + 0.5 * (mode->width - w);
+            int y = pos_y + 0.5 * (mode->height - h);
+            // glfwSetWindowSize(a_window, w, h);
+            glfwSetWindowMonitor(a_window, NULL, x, y, w, h, mode->refreshRate);
+            // glfwSwapInterval(g_swapInterval);
         }
-    }
-
-    // option - toggle vertical mirroring
-    else if (a_key == GLFW_KEY_M)
-    {
-        mirroredDisplay = !mirroredDisplay;
-        g_endoscope->m_camera->setMirrorVertical(mirroredDisplay);
     }
 
     // option - help menu
@@ -1236,103 +1285,19 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
     {
         cout << "Keyboard Options:" << endl << endl;    g_coordApp->close_devices();
         cout << "[h] - Display help menu" << endl;
-        cout << "[1] - Enable gravity" << endl;
-        cout << "[2] - Disable gravity" << endl << endl;    g_coordApp->close_devices();
-        cout << "[3] - decrease linear haptic gain" << endl;
-        cout << "[4] - increase linear haptic gain" << endl;
-        cout << "[5] - decrease angular haptic gain" << endl;
-        cout << "[6] - increase angular haptic gain" << endl << endl;
-        cout << "[7] - decrease linear stiffness" << endl;
-        cout << "[8] - increase linear stiffness" << endl;
-        cout << "[9] - decrease angular stiffness" << endl;
-        cout << "[0] - increase angular stiffness" << endl << endl;
+        // cout << "[1] - Enable gravity" << endl;
+        // cout << "[2] - Disable gravity" << endl << endl;    g_coordApp->close_devices();
+        // cout << "[3] - decrease linear haptic gain" << endl;
+        // cout << "[4] - increase linear haptic gain" << endl;
+        // cout << "[5] - decrease angular haptic gain" << endl;
+        // cout << "[6] - increase angular haptic gain" << endl << endl;
+        // cout << "[7] - decrease linear stiffness" << endl;
+        // cout << "[8] - increase linear stiffness" << endl;
+        // cout << "[9] - decrease angular stiffness" << endl;
+        // cout << "[0] - increase angular stiffness" << endl << endl;
         cout << "[q] - Exit application\n" << endl;
         cout << endl << endl;
     }
-
-    // option - enable gravity
-    else if (a_key == GLFW_KEY_1)
-    {
-        // enable gravity
-        g_bulletWorld->setGravity(cVector3d(0.0, 0.0, -9.8));
-        printf("gravity ON:\n");
-    }
-
-    // option - disable gravity
-    else if (a_key == GLFW_KEY_2)
-    {
-        // disable gravity
-        g_bulletWorld->setGravity(cVector3d(0.0, 0.0, 0.0));
-        printf("gravity OFF:\n");
-    }
-
-    // option - decrease linear haptic gain
-    else if (a_key == GLFW_KEY_3)
-    {
-        printf("linear haptic gain:  %f\n", g_coordApp->increment_K_lh(-0.05));
-    }
-
-    // option - increase linear haptic gain
-    else if (a_key == GLFW_KEY_4)
-    {
-        printf("linear haptic gain:  %f\n", g_coordApp->increment_K_lh(0.05));
-    }
-
-    // option - decrease angular haptic gain
-    else if (a_key == GLFW_KEY_5)
-    {
-        printf("angular haptic gain:  %f\n", g_coordApp->increment_K_ah(-0.05));
-    }
-
-    // option - increase angular haptic gain
-    else if (a_key == GLFW_KEY_6)
-    {
-        printf("angular haptic gain:  %f\n", g_coordApp->increment_K_ah(0.05));
-    }
-
-    // option - decrease linear stiffness
-    else if (a_key == GLFW_KEY_7)
-    {
-        printf("linear stiffness:  %f\n", g_coordApp->increment_K_lc(-50));
-    }
-
-    // option - increase linear stiffness
-    else if (a_key == GLFW_KEY_8)
-    {
-        printf("linear stiffness:  %f\n", g_coordApp->increment_K_lc(50));
-    }
-
-    // option - decrease angular stiffness
-    else if (a_key == GLFW_KEY_9)
-    {
-        printf("angular stiffness:  %f\n", g_coordApp->increment_K_ac(-1));
-    }
-
-    // option - increase angular stiffness
-    else if (a_key == GLFW_KEY_0)
-    {
-        printf("angular stiffness:  %f\n", g_coordApp->increment_K_ac(1));
-    }
-    else if (a_key == GLFW_KEY_C){
-        g_coordApp->m_use_cam_frame_rot = true;
-        printf("Gripper Rotation w.r.t Camera Frame:\n");
-    }
-    else if (a_key == GLFW_KEY_W){
-        g_coordApp->m_use_cam_frame_rot = false;
-        printf("Gripper Rotation w.r.t World Frame:\n");
-    }
-//    // option - open gripper
-//    else if (a_key == GLFW_KEY_S)
-//    {
-//        grip_angle -= 0.01;
-//        printf("gripper angle:  %f\n", grip_angle);
-//    }
-//    // option - open close gripper
-//    else if (a_key == GLFW_KEY_D)
-//    {
-//        grip_angle += 0.01;
-//        printf("gripper angle:  %f\n", grip_angle);
-//    }
 }
 
 //---------------------------------------------------------------------------
@@ -1364,7 +1329,7 @@ int randomPick()
   {
     pick = rand() % n_cylinders;
   }
-  std::cout << "Next Target Cylinder : " << '\t' << pick << '\n';
+  std::cout << "Target Cylinder : " << '\t' << pick << '\n';
   return pick;
 }
 
@@ -1389,88 +1354,60 @@ bool round_complete(int target)
   return flag;
 }
 
-void updateGraphics(void)
+void updateGame()
 {
-    /////////////////////////////////////////////////////////////////////
-    // UPDATE WIDGETS
-    /////////////////////////////////////////////////////////////////////
-    static int n_function_iterations=0;
-    static int target_cylinder=12;
-    static int count_success = -1;
+  static int target_cylinder=12;
+  static int count_success = -1;
 
-    n_function_iterations++;
+  cMaterial meshMat;
 
-    cMaterial meshMat;
+  if (round_complete(target_cylinder))
+  {
+    count_success++;
+    std::cout << "New Round Starting" << '\n';
+    meshMat.setRed();
+    g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
+    list_cylinders.push_back(target_cylinder);
+    target_cylinder=randomPick();
+  }
 
-    if (round_complete(target_cylinder))
-    {
-      count_success++;
-      std::cout << "Round Complete" << '\n';
-      meshMat.setRed();
-      g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
-      list_cylinders.push_back(target_cylinder);
-      target_cylinder=randomPick();
-    }
+  if (count_success==5)
+  {
+    glfwSetWindowShouldClose(g_windows[0], GLFW_TRUE);
+  }
 
-    if (count_success==5)
-    {
-      glfwSetWindowShouldClose(g_window, GLFW_TRUE);
-    }
+  if ((int) (10*g_clockWorld.getCurrentTimeSeconds()) % 10 < 5)
+  {
+    meshMat.setYellow();
+    g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
+  }
+  else
+  {
+    meshMat.setBlueSteel();
+    g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
+  }
+}
 
-    if ((int) (10*g_clockWorld.getCurrentTimeSeconds()) % 10 < 5)
-    {
-      meshMat.setYellow();
-      g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
-    }
-    else
-    {
-      meshMat.setBlueSteel();
-      g_bulletCylinder[target_cylinder]->setMaterial(meshMat);
-    }
-
-    // update haptic and graphic rate data
-    // g_labelTimes->setText("Wall Time: " + cStr(g_clockWorld.getCurrentTimeSeconds(),2) + " s" +
-    //                     + " / "+" Simulation Time: " + cStr(g_bulletWorld->getSimulationTime(),2) + " s");
-    // g_labelRates->setText(cStr(g_freqCounterGraphics.getFrequency(), 0) + " Hz / " + cStr(g_freqCounterHaptics.getFrequency(), 0) + " Hz");
-    // g_labelModes->setText("MODE: " + g_coordApp->m_mode_str);
-    // g_labelBtnAction->setText(" : " + g_btn_action_str);
-    //
-    // for (int i = 0 ; i < g_coordApp->m_num_devices ; i++){
-    //     g_labelDevRates[i]->setText(g_coordApp->m_hapticDevices[i].m_hInfo.m_modelName + ": " + cStr(g_coordApp->m_hapticDevices[i].m_freq_ctr.getFrequency(), 0) + " Hz");
-    //     g_labelDevRates[i]->setLocalPos(10, (int)(g_height - (i+1)*20));
-    // }
-    //
-    // // update position of label
-    // g_labelTimes->setLocalPos((int)(0.5 * (g_width - g_labelTimes->getWidth())), 30);
-    // g_labelRates->setLocalPos((int)(0.5 * (g_width - g_labelRates->getWidth())), 10);
-    // g_labelModes->setLocalPos((int)(0.5 * (g_width - g_labelModes->getWidth())), 50);
-    // g_labelBtnAction->setLocalPos((int)(0.5 * (g_width - g_labelModes->getWidth()) + g_labelModes->getWidth()), 50);
-    // bool _pressed;
-    // if (g_coordApp->m_num_devices > 0){
-    //     g_coordApp->m_hapticDevices[0].m_hDevice->getUserSwitch(g_coordApp->m_bulletTools[0].act_2_btn, _pressed);
-    //     if(_pressed && g_coordApp->m_simModes == MODES::CAM_CLUTCH_CONTROL){
-    //         double scale = 0.3;
-    //         g_dev_vel = g_coordApp->m_hapticDevices[0].measured_lin_vel();
-    //         g_coordApp->m_hapticDevices[0].m_hDevice->getRotation(g_dev_rot_cur);
-    //         g_endoscope->m_camera->setLocalPos(g_endoscope->m_camera->getLocalPos() + cMul(scale, cMul(g_endoscope->m_camera->getGlobalRot(),g_dev_vel)));
-    //         // g_endoscope->m_camera->setLocalRot(cMul(g_cam_rot_last, cMul(cTranspose(g_dev_rot_last), g_dev_rot_cur)));
-    //     }
-    //     if(!_pressed){
-    //         g_cam_rot_last = g_endoscope->m_camera->getGlobalRot();
-    //         g_coordApp->m_hapticDevices[0].m_hDevice->getRotation(g_dev_rot_last);
-    //     }
-    // }
-    // g_endoscope->m_camera->setLocalRot(g_endoscope->getCommandedRot());
-
+void updateGraphics(int i)
+{
     /////////////////////////////////////////////////////////////////////
     // RENDER SCENE
     /////////////////////////////////////////////////////////////////////
+    if (i == g_oculus_index)
+    {
+      stereoMode = C_STEREO_PASSIVE_LEFT_RIGHT;
+    }
+    else
+    {
+      stereoMode = C_STEREO_DISABLED;
+    }
 
+    g_endoscope->m_camera->setStereoMode(stereoMode);
     // update shadow maps (if any)
-    g_bulletWorld->updateShadowMaps(false, mirroredDisplay);
+    g_bulletWorld->updateShadowMaps(false, false);
 
     // render world
-    g_endoscope->m_camera->renderView(g_width, g_height);
+    g_endoscope->m_camera->renderView(g_widths[i], g_heights[i]);
 
     // wait until all GL commands are completed
     glFinish();
@@ -1522,6 +1459,7 @@ void updateBulletSim(){
         double dt;
         if (g_dt_fixed > 0.0) dt = g_dt_fixed;
         else dt = compute_dt(true);
+        updateGame();
         for (int i = 0 ; i<g_coordApp->m_num_devices ; i++){
             // update position of tool
             g_coordApp->m_bulletTools[i].update_measured_pose();

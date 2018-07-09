@@ -33,7 +33,7 @@
     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
     LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
     ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE. 
+    POSSIBILITY OF SUCH DAMAGE.
 
     \author    <http://www.chai3d.org>
     \author    Francois Conti
@@ -56,7 +56,7 @@ using namespace std;
 
 // stereo Mode
 /*
-    C_STEREO_DISABLED:            Stereo is disabled 
+    C_STEREO_DISABLED:            Stereo is disabled
     C_STEREO_ACTIVE:              Active stereo for OpenGL NVDIA QUADRO cards
     C_STEREO_PASSIVE_LEFT_RIGHT:  Passive stereo where L/R images are rendered next to each other
     C_STEREO_PASSIVE_TOP_BOTTOM:  Passive stereo where L/R images are rendered above each other
@@ -167,7 +167,7 @@ void close(void);
     DEMO:   08-shaders.cpp
 
     This example illustrates how to build a small mesh cube.
-    The applications also presents the use of texture properties by defining 
+    The applications also presents the use of texture properties by defining
     a texture image and associated texture coordinates for each of the vertices.
     A bump map is also used in combination with a shader to create a more
     realistic rendering of the surface.
@@ -305,7 +305,7 @@ int main(int argc, char* argv[])
     // set vertical mirrored display mode
     camera->setMirrorVertical(mirroredDisplay);
 
-    // set camera field of view 
+    // set camera field of view
     camera->setFieldViewAngleDeg(80);
 
     // create a light source
@@ -396,7 +396,7 @@ int main(int argc, char* argv[])
 
     // create a texture
     cTexture2dPtr texture = cTexture2d::create();
-       
+
     bool fileload = texture->loadFromFile(RESOURCE_PATH("../resources/images/stonebricks.png"));
     if (!fileload)
     {
@@ -414,7 +414,7 @@ int main(int argc, char* argv[])
     // apply texture to object
     object->setTexture(texture);
 
-    // enable texture rendering 
+    // enable texture rendering
     object->setUseTexture(true);
 
     // Since we don't need to see our polygons from both sides, we enable culling.
@@ -475,7 +475,7 @@ int main(int argc, char* argv[])
 
     // create vertex shader
     cShaderPtr vertexShader = cShader::create(C_VERTEX_SHADER);
-    
+
     // load vertex shader from file
     fileload = vertexShader->loadSourceFile(RESOURCE_PATH("../resources/shaders/bump.vert"));
     if (!fileload)
@@ -487,7 +487,7 @@ int main(int argc, char* argv[])
 
     // create fragment shader
     cShaderPtr fragmentShader = cShader::create(C_FRAGMENT_SHADER);
-    
+
     // load fragment shader from file
     fileload = fragmentShader->loadSourceFile(RESOURCE_PATH("../resources/shaders/bump.frag"));
     if (!fileload)
@@ -508,7 +508,7 @@ int main(int argc, char* argv[])
 
     // assign program shader to object
     object->setShaderProgram(programShader);
- 
+
     // link program shader
     programShader->linkProgram();
 
@@ -525,7 +525,7 @@ int main(int argc, char* argv[])
 
     // create a font
     font = NEW_CFONTCALIBRI20();
-    
+
     // create a label to display the haptic and graphic rate of the simulation
     labelRates = new cLabel(font);
     camera->m_frontLayer->addChild(labelRates);
@@ -830,7 +830,7 @@ void updateHaptics(void)
             object->rotateAboutGlobalAxisRad(cNormalize(angVel), timeInterval * angVel.length());
         }
     }
-    
+
     // exit haptics thread
     simulationFinished = true;
 }

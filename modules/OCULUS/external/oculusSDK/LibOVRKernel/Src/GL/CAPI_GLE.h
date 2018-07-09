@@ -1,7 +1,7 @@
 /************************************************************************************
 
 Filename    :   CAPI_GLE.h
-Content     :   OpenGL extensions support. Implements a stripped down glew-like 
+Content     :   OpenGL extensions support. Implements a stripped down glew-like
                 interface with some additional functionality.
 Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
@@ -34,10 +34,10 @@ limitations under the License.
 // How to use this functionality
 //
 // - You #include this header instead of gl.h, glext.h, wglext.h (Windows), gl3.h (Apple), gl3ext.h (Apple), glx.h (Unix), and glxext.h (Unix).
-//   Currently you still would #include <Windows.h> for the base wgl functions on Windows and OpenGL.h or NSOpenGL for the 
+//   Currently you still would #include <Windows.h> for the base wgl functions on Windows and OpenGL.h or NSOpenGL for the
 //   base Apple cgl functions.
-// 
-// - You call OpenGL functions just like you would if you were directly using OpenGL 
+//
+// - You call OpenGL functions just like you would if you were directly using OpenGL
 //   headers and declarations. The difference is that this module automatically loads
 //   extensions on init and so you should never need to use GetProcAddress, wglGetProcAddress, etc.
 //
@@ -50,10 +50,10 @@ limitations under the License.
 //
 // - In order to use an OpenGL extension, you can check the GLE_ helper macro that exists for each
 //   extension. For example, in order to check of the KHR_debug is present you could do this:
-//        if(GLE_KHR_debug) ... 
+//        if(GLE_KHR_debug) ...
 //   You cannot check for the presence of extensions by testing the function pointer, because
 //   when hooking is enabled then we aren't using function pointers and thus all functions will
-//   look like they are present. 
+//   look like they are present.
 //
 // - You can test if the OpenGL implementation is OpenGL ES by checking the GLEContext IsGLES
 //   member variable. For example: if(GLEContext::GetCurrentContext()->IsGLES) ...
@@ -73,7 +73,7 @@ limitations under the License.
 //     1) Add the appropriate extension declaration to CAPI_GLE_GL.h, preferably by
 //        copying it from the standard header file it normally comes from. If it's
 //        platform-specific (e.g. a Windows wgl function) then make sure it's declared
-//        within the given platform section. Note that there are potentially #defines, typedefs, 
+//        within the given platform section. Note that there are potentially #defines, typedefs,
 //        function typedefs, and function #defines. There is always a GLE_ macro declared which
 //        lets the user know at runtime whether the extension is present.
 //        Note that entries are alphabetically sorted in these files.
@@ -85,7 +85,7 @@ limitations under the License.
 //                  #define GLE_KHR_debug GLEGetCurrentVariable(gl_KHR_debug)
 //              #endif etc.
 //
-//     2) Add a hook function for in the hook section of the GLEContext class in this header, 
+//     2) Add a hook function for in the hook section of the GLEContext class in this header,
 //        ideally in the same order it's declared in the CAPI_GLE_GL.h so it's easily readable.
 //        e.g. void glDebugMessageControl_Hook(GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint* ids, GLboolean enabled); etc.
 //
@@ -96,8 +96,8 @@ limitations under the License.
 //        e.g. GLELoadProc(glDebugMessageCallback_Impl, glDebugMessageCallback); etc.
 //
 //     5) Add code to GLEContext::InitExtensionSupport to detect the extension support.
-//        On Mac, core profile functions aren't identified as extensions and so in addition 
-//        to detecting them you need to unilaterally set them as available when using 3.2+ 
+//        On Mac, core profile functions aren't identified as extensions and so in addition
+//        to detecting them you need to unilaterally set them as available when using 3.2+
 //        by adding them to the section at the bottom of InitExtensionSupport.
 //        e.g. { gl_KHR_debug, "GL_KHR_debug" }, etc.
 //
@@ -111,9 +111,9 @@ limitations under the License.
 //
 // In order to test this, build with GLE_HOOKING_ENABLED defined and not defined.
 //
-// Note that if the extension is a WGL-, GLX-, or CGL-specific extension, they are handled like above 
+// Note that if the extension is a WGL-, GLX-, or CGL-specific extension, they are handled like above
 // but are in their own section below the section for regular OpenGL extensions.
-// 
+//
 // In some cases the given interface may already be present by currently commented out,
 // in which case you can simply un-comment it to enable it.
 ///////////////////////////////////////////////////////////////////////////////
@@ -130,7 +130,7 @@ namespace OVR
     //
     // Manages a collection of OpenGL extension interfaces.
     // If the application has multiple OpenGL unrelated contexts then you will want to create a
-    // different instance of this class for each one you intend to use it with. 
+    // different instance of this class for each one you intend to use it with.
     //
     // Example usage:
     //     GLEContext gGLEContext;
@@ -169,18 +169,18 @@ namespace OVR
     public:
         GLEContext();
        ~GLEContext();
-      
+
         // Initializes platform-specific functionality (e.g. Windows WGL, Unix GLX, Android EGL, Apple CGL).
         // You would typically call this before creating an OpenGL context and using platform-specific functions.
         void PlatformInit();
         bool IsPlatformInitialized() const;
 
-        // Loads all the extensions from the current OpenGL context. This must be called after an OpenGL context 
+        // Loads all the extensions from the current OpenGL context. This must be called after an OpenGL context
         // has been created and made current.
         void Init();
         bool IsInitialized() const;
-        
-        // Clears all the extensions initialized by PlatformInit and Init. 
+
+        // Clears all the extensions initialized by PlatformInit and Init.
         void Shutdown();
 
         void SetEnableHookGetError(bool enabled)
@@ -188,11 +188,11 @@ namespace OVR
 
         // Returns the default instance of this class.
         static GLEContext* GetCurrentContext();
-        
+
         // Sets the default instance of this class. This should be called after enabling a new OpenGL context.
         // This sets the current GLEContext; it does not set the underlying OpenGL context itself.
         static void SetCurrentContext(GLEContext*);
-        
+
     public:
         // OpenGL version information
         int   MajorVersion;             // OpenGL major version
@@ -209,14 +209,14 @@ namespace OVR
         void InitVersion();             // Initializes the version information (e.g. MajorVersion). Called by the public Init function.
         void InitExtensionLoad();       // Loads the function addresses into the function pointers.
         void InitExtensionSupport();    // Loads the boolean extension support booleans.
-        
+
         void InitPlatformVersion();
         void InitPlatformExtensionLoad();
         void InitPlatformExtensionSupport();
 
     public:
         // GL_VERSION_1_1
-        // Not normally included because all OpenGL 1.1 functionality is always present. But if we have 
+        // Not normally included because all OpenGL 1.1 functionality is always present. But if we have
         // hooking enabled then we implement our own version of each function.
         #if defined(GLE_HOOKING_ENABLED)
           //void PreHook(const char* functionName);             // Called at the beginning of a hook function.
@@ -602,7 +602,7 @@ namespace OVR
             void glResetHistogram_Hook(GLenum target);
             void glResetMinmax_Hook(GLenum target);
             */
-        
+
             // GL_VERSION_1_3
             void glActiveTexture_Hook(GLenum texture);
             void glSampleCoverage_Hook(GLclampf value, GLboolean invert);
@@ -1228,7 +1228,7 @@ namespace OVR
 
         // GL_VERSION_1_1
         // These are not represented by function pointers.
-        
+
         // GL_VERSION_1_2
         PFNGLCOPYTEXSUBIMAGE3DPROC glCopyTexSubImage3D_Impl;
         PFNGLDRAWRANGEELEMENTSPROC glDrawRangeElements_Impl;
@@ -1692,7 +1692,7 @@ namespace OVR
         PFNGLISRENDERBUFFERPROC glIsRenderbuffer_Impl;
         PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage_Impl;
         PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC glRenderbufferStorageMultisample_Impl;
-    
+
         // GL_ARB_framebuffer_sRGB
         // (no functions)
 
@@ -1757,7 +1757,7 @@ namespace OVR
         PFNGLPUSHDEBUGGROUPPROC glPushDebugGroup_Impl;
 
         // GL_KHR_robust_buffer_access_behavior
-        
+
         // GL_WIN_swap_hint
         PFNGLADDSWAPHINTRECTWINPROC glAddSwapHintRectWIN_Impl;
 
@@ -1838,7 +1838,7 @@ namespace OVR
 
         // WGL_ARB_pixel_format_float
         // (no functions)
-        
+
         // WGL_ARB_framebuffer_sRGB
         // (no functions)
 
@@ -1896,7 +1896,7 @@ namespace OVR
 
         // WGL_NV_copy_image
         PFNWGLCOPYIMAGESUBDATANVPROC wglCopyImageSubDataNV_Impl;
-    
+
         // WGL_NV_DX_interop
         PFNWGLDXCLOSEDEVICENVPROC            wglDXCloseDeviceNV_Impl;
         PFNWGLDXLOCKOBJECTSNVPROC            wglDXLockObjectsNV_Impl;
@@ -1908,11 +1908,11 @@ namespace OVR
         PFNWGLDXUNREGISTEROBJECTNVPROC       wglDXUnregisterObjectNV_Impl;
 
       #endif // GLE_WGL_ENABLED
-      
+
       #if defined(GLE_GLX_ENABLED)
         // GLX_VERSION_1_1
         // We don't create any pointers, because we assume these functions are always present.
-        
+
         // GLX_VERSION_1_2
         PFNGLXGETCURRENTDISPLAYPROC      glXGetCurrentDisplay_Impl;
 
@@ -1937,7 +1937,7 @@ namespace OVR
 
         // GLX_VERSION_1_4
         // Nothing to declare
-        
+
         // GLX_ARB_create_context
         PFNGLXCREATECONTEXTATTRIBSARBPROC glXCreateContextAttribsARB_Impl;
 
@@ -1957,7 +1957,7 @@ namespace OVR
 
       #endif // GLE_GLX_ENABLED
 
-        
+
         // Boolean extension support indicators. Each of these identifies the
         // presence or absence of the given extension. A better solution here
         // might be to use an STL map<const char*, bool>.
@@ -2004,7 +2004,7 @@ namespace OVR
       //bool gle_KHR_robust_buffer_access_behavior;
       //bool gle_KHR_robustness;
         bool gle_WIN_swap_hint;
-        
+
       #if defined(GLE_WGL_ENABLED)
         bool gle_WGL_ARB_buffer_region;
         bool gle_WGL_ARB_create_context;
@@ -2037,7 +2037,7 @@ namespace OVR
         bool gle_GLX_OML_sync_control;
         bool gle_MESA_swap_control;
       #endif
-        
+
     }; // class GLEContext
 
 

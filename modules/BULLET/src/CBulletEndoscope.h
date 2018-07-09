@@ -83,18 +83,32 @@ class cBulletEndoscope : public cBulletGenericObject{
   //--------------------------------------------------------------------------
 public:
   cBulletEndoscope(cBulletWorld* a_world,
-                   cVector3d rcm_pos, cMatrix3d rcm_ori,
-                   cVector3d camera_pos, cMatrix3d camera_ori,
+                   cVector3d a_rcm_pos, cMatrix3d a_rcm_rot,
+                   double yaw_joint, double pitch_joint, double insertion_length, double roll_joint,
                    std::string a_objName = "endoscope");
 
+  ~cBulletEndoscope(){
+    if (m_rosObjPtr)
+    {
+      delete m_rosObjPtr.get();
+    }
+  };
 
-   ~cBulletEndoscope(){};
+  void setCameraRotFromJoints();
+  void setCameraPosFromJoints();
+  void setJointsFromCameraRot();
   virtual void updateCmdFromROS(double dt);
   void updatePositionFromDynamics();
   cMatrix3d getCommandedRot();
+
   cCamera* m_camera;
   cMatrix3d cur_rot_mat, cmd_rot_mat, cmd_rot_mat_last;
   cMatrix3d oculus_ecm_rot_mat;
+  std::vector<double> joint_angles;
+  cVector3d rcm_pos;
+  cMatrix3d rcm_rot;
+  cVector3d camera_pos;
+  cMatrix3d camera_rot;
 
 };
 }

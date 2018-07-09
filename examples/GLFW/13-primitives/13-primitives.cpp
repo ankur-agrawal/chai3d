@@ -33,7 +33,7 @@
     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
     LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
     ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE. 
+    POSSIBILITY OF SUCH DAMAGE.
 
     \author    <http://www.chai3d.org>
     \author    Francois Conti
@@ -56,12 +56,13 @@ using namespace std;
 
 // stereo Mode
 /*
-    C_STEREO_DISABLED:            Stereo is disabled 
+    C_STEREO_DISABLED:            Stereo is disabled
     C_STEREO_ACTIVE:              Active stereo for OpenGL NVDIA QUADRO cards
     C_STEREO_PASSIVE_LEFT_RIGHT:  Passive stereo where L/R images are rendered next to each other
     C_STEREO_PASSIVE_TOP_BOTTOM:  Passive stereo where L/R images are rendered above each other
 */
 cStereoMode stereoMode = C_STEREO_DISABLED;
+#define RESOURCE_PATH(p)    (char*)((resourceRoot+string(p)).c_str())
 
 // fullscreen mode
 bool fullscreen = false;
@@ -166,7 +167,7 @@ void close(void);
 /*
     DEMO:   13-primitives.cpp
 
-    This example illustrates how to build simple triangle based mesh primitives 
+    This example illustrates how to build simple triangle based mesh primitives
     using the functions provided in file graphics/CPrimitives.h
 */
 //==============================================================================
@@ -366,8 +367,8 @@ int main(int argc, char* argv[])
     tool->enableDynamicObjects(true);
 
     // haptic forces are enabled only if small forces are first sent to the device;
-    // this mode avoids the force spike that occurs when the application starts when 
-    // the tool is located inside an object for instance. 
+    // this mode avoids the force spike that occurs when the application starts when
+    // the tool is located inside an object for instance.
     tool->setWaitForSmallForce(true);
 
     // start the haptic tool
@@ -463,13 +464,13 @@ int main(int argc, char* argv[])
     base->addChild(cylinder);
 
     // build mesh using a cylinder primitive
-    cCreatePipe(cylinder, 
+    cCreatePipe(cylinder,
                 0.15,
                 0.05,
                 0.06,
                 32,
                 1,
-                cVector3d(-0.05,-0.20, 0.0), 
+                cVector3d(-0.05,-0.20, 0.0),
                 cMatrix3d(cDegToRad(0), cDegToRad(0), cDegToRad(170), C_EULER_ORDER_XYZ)
                 );
 
@@ -495,7 +496,7 @@ int main(int argc, char* argv[])
     base->addChild(cone);
 
     // build mesh using a cylinder primitive
-    cCreateCone(cone, 
+    cCreateCone(cone,
                 0.15,
                 0.05,
                 0.01,
@@ -504,7 +505,7 @@ int main(int argc, char* argv[])
                 1,
                 true,
                 true,
-                cVector3d(0.30, 0.0, 0.0), 
+                cVector3d(0.30, 0.0, 0.0),
                 cMatrix3d(cDegToRad(0), cDegToRad(0), cDegToRad(0), C_EULER_ORDER_XYZ)
                 );
 
@@ -583,17 +584,69 @@ int main(int argc, char* argv[])
     //--------------------------------------------------------------------------
 
     // create program shader
-    cShaderProgramPtr shaderProgram = cShaderProgram::create(C_SHADER_FONG_VERT, C_SHADER_FONG_FRAG);
+    // cShaderProgramPtr shaderProgram = cShaderProgram::create(C_SHADER_FONG_VERT, C_SHADER_FONG_FRAG);
+    //
+    // // set uniforms
+    // shaderProgram->setUniformi("uShadowMap", C_TU_SHADOWMAP);
+    //
+    // // assign shader to mesh objects in the world
+    // tool->setShaderProgram(shaderProgram);
+    // base->setShaderProgram(shaderProgram);
+    // teaPot->setShaderProgram(shaderProgram);
+    // cylinder->setShaderProgram(shaderProgram);
+    // cone->setShaderProgram(shaderProgram);
 
-    // set uniforms
-    shaderProgram->setUniformi("uShadowMap", C_TU_SHADOWMAP);
+    //--------------------------------------------------------------------------
+    // CREATE SHADERS
+    //--------------------------------------------------------------------------
+    bool fileload;
+    // create vertex shader
+    cShaderPtr vertexShader = cShader::create(C_VERTEX_SHADER);
 
-    // assign shader to mesh objects in the world
-    tool->setShaderProgram(shaderProgram);
-    base->setShaderProgram(shaderProgram);
-    teaPot->setShaderProgram(shaderProgram);
-    cylinder->setShaderProgram(shaderProgram);
-    cone->setShaderProgram(shaderProgram);
+    // load vertex shader from file
+    fileload = vertexShader->loadSourceFile(RESOURCE_PATH("../resources/shaders/Oculus.vert"));
+    if (!fileload)
+    {
+#if defined(_MSVC)
+        fileload = vertexShader->loadSourceFile("../../../bin/resources/shaders/Oculus.vert");
+#endif
+    }
+
+    // create fragment shader
+    cShaderPtr fragmentShader = cShader::create(C_FRAGMENT_SHADER);
+
+    // load fragment shader from file
+    fileload = fragmentShader->loadSourceFile(RESOURCE_PATH("../resources/shaders/Oculus.frag"));
+    if (!fileload)
+    {
+#if defined(_MSVC)
+        fileload = fragmentShader->loadSourceFile("../../../bin/resources/shaders/Oculus.frag");
+#endif
+    }
+
+    std::cout << fileload << '\n';
+
+    // create program shader
+    cShaderProgramPtr programShader = cShaderProgram::create();
+
+    // assign vertex shader to program shader
+    programShader->attachShader(vertexShader);
+
+    // assign fragment shader to program shader
+    programShader->attachShader(fragmentShader);
+
+    // // set uniforms
+    programShader->setUniformi("uShadowMap", C_TU_SHADOWMAP);
+
+    // assign program shader to object
+    // tool->setShaderProgram(programShader);
+    // base->setShaderProgram(programShader);
+    teaPot->setShaderProgram(programShader);
+    // cylinder->setShaderProgram(programShader);
+    // cone->setShaderProgram(programShader);
+
+    // link program shader
+    programShader->linkProgram();
 
 
     //--------------------------------------------------------------------------
@@ -602,7 +655,7 @@ int main(int argc, char* argv[])
 
     // create a font
     font = NEW_CFONTCALIBRI20();
-    
+
     // create a label to display the haptic and graphic rate of the simulation
     labelRates = new cLabel(font);
     labelRates->m_fontColor.setBlack();
@@ -835,7 +888,7 @@ void updateHaptics(void)
         // compute interaction forces
         tool->computeInteractionForces();
 
- 
+
         /////////////////////////////////////////////////////////////////////////
         // HAPTIC MANIPULATION
         /////////////////////////////////////////////////////////////////////////
@@ -864,7 +917,7 @@ void updateHaptics(void)
                 // get transformation from object
                 cTransform world_T_object = object->getGlobalTransform();
 
-                // compute inverse transformation from contact point to object 
+                // compute inverse transformation from contact point to object
                 cTransform tool_T_world = world_T_tool;
                 tool_T_world.invert();
 
@@ -912,9 +965,9 @@ void updateHaptics(void)
         /////////////////////////////////////////////////////////////////////////
 
         // send forces to haptic device
-        tool->applyToDevice();  
+        tool->applyToDevice();
     }
-    
+
     // exit haptics thread
     simulationFinished = true;
 }
