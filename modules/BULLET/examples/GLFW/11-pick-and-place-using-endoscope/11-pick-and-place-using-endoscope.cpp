@@ -127,7 +127,7 @@ cSpotLight *g_light;
 cLabel* g_labelRates;
 cLabel* g_labelDevRates[10];
 cLabel* g_labelTimes;
-cLabel* g_labelModes;
+cLabel* g_labelSubtasks;
 cLabel* g_labelBtnAction;
 std::string g_btn_action_str = "";
 bool g_cam_btn_pressed = false;
@@ -179,6 +179,21 @@ string resourceRoot;
 
 //number of the oculus screen
 int g_oculus_index = -1;
+
+enum SUBTASKS{ DEFAULT,
+               APPROACHING_RING,
+               PICKING_UP_RING,
+               APPROACHING_PEG,
+               PLACING_RING_ON_PEG
+};
+
+std::vector<string> SubtaskStrings = { "Unknown action",
+                                       "Approaching to pick up ring",
+                                       "Picking up ring",
+                                       "Approaching to place the ring",
+                                       "Placing the ring on the peg"};
+
+SUBTASKS g_subtask = DEFAULT;
 
 
 //---------------------------------------------------------------------------
@@ -406,7 +421,9 @@ public:
         act_1_btn   = 0;
         act_2_btn   = 1;
         mode_next_btn = 2;
-        mode_prev_btn= 3;
+        mode_prev_btn= 5;
+        cam_plus_btn = 3;
+        cam_minus_btn = 4;
         btn_cam_rising_edge = false;
         btn_clutch_rising_edge = false;
         m_posRefLast.set(0.0,0.0,0.0);
@@ -433,6 +450,8 @@ public:
     int act_2_btn;
     int mode_next_btn;
     int mode_prev_btn;
+    int cam_plus_btn;
+    int cam_minus_btn;
     int m_gripper_pinch_btn = -1;
     bool btn_cam_rising_edge;
     bool btn_clutch_rising_edge;
@@ -452,8 +471,10 @@ void Sim::set_sim_params(cHapticDeviceInfo &a_hInfo, Device* a_dev){
         K_lh = K_lh/3;
         act_1_btn     =  1;
         act_2_btn     =  2;
-        mode_next_btn =  3;
-        mode_prev_btn =  4;
+        // mode_next_btn =  3;
+        // mode_prev_btn =  4;
+        cam_plus_btn  =  3;
+        cam_minus_btn =  4;
         K_lh = 0.04;
         K_ah = 0.0;
         m_gripper_pinch_btn = 0;
@@ -656,7 +677,7 @@ void Coordination::create_bullet_gripper(uint dev_num){
     std::ostringstream dev_str;
     dev_str << (dev_num + 1);
     std::string gripper_name = "Gripper" + dev_str.str();
-    m_bulletTools[dev_num].gripper = new cBulletGripper(m_bulletWorld, gripper_name, 0.3);
+    m_bulletTools[dev_num].gripper = new cBulletGripper(m_bulletWorld, gripper_name, 1);//0.3
     m_bulletTools[dev_num].set_sim_params(m_hapticDevices[dev_num].m_hInfo, & m_hapticDevices[dev_num]);
     m_bulletTools[dev_num].gripper->build();
     m_bulletWorld->addChild(m_bulletTools[dev_num].gripper);
@@ -931,7 +952,7 @@ int main(int argc, char* argv[])
 
     for (int i=0; i<num_monitors; i++)
     {
-      fullscreens[i] = true;
+      fullscreens[i] = false;
       const GLFWvidmode* mode = glfwGetVideoMode(monitors[i]);
       int monitor_width_mm, monitor_height_mm, monitor_pos_x, monitor_pos_y;
       glfwGetMonitorPhysicalSize(monitors[i], &monitor_width_mm, &monitor_height_mm);
@@ -941,7 +962,6 @@ int main(int argc, char* argv[])
       }
 
       glfwGetMonitorPos(monitors[i], &monitor_pos_x, &monitor_pos_y);
-      std::cout << monitor_pos_x << '\t' << monitor_pos_y << '\n';
 
       w = mode->width;
       h = mode->height;
@@ -1040,9 +1060,9 @@ int main(int argc, char* argv[])
     // g_bulletWorld->addChild(g_camera);
 
     // position and orient the camera
-    g_endoscope->m_camera->set(cVector3d(1.0, 0.0, 1.7),    // camera position (eye)
-                cVector3d(0.0, 0.0,0.0),    // lookat position (target)
-                cVector3d(0.0, 0.0, 1.0));   // direction of the "up" vector
+    // g_endoscope->m_camera->set(cVector3d(1.0, 0.0, 1.7),    // camera position (eye)
+    //             cVector3d(0.0, 0.0,0.0),    // lookat position (target)
+    //             cVector3d(0.0, 0.0, 1.0));   // direction of the "up" vector
 
     // std::cout << g_endoscope->m_camera->getLocalRot().str(2) << '\n';
 
@@ -1115,6 +1135,18 @@ int main(int argc, char* argv[])
       g_bulletCylinder[i]->setStatic(true);
     }
 
+    //--------------------------------------------------------------------------
+    // WIDGETS
+    //--------------------------------------------------------------------------
+
+    // create a font
+    cFontPtr font = NEW_CFONTCALIBRI40();
+
+    // create a label to display the haptic and graphic rate of the simulation
+    g_labelSubtasks = new cLabel(font);
+    g_labelSubtasks->m_fontColor.setWhite();
+    // g_labelSubtasks->m_fontSize(20)
+    g_endoscope->m_camera->m_frontLayer->addChild(g_labelSubtasks);
 
 
     g_coordApp = std::make_shared<Coordination>(g_bulletWorld, num_devices_to_load);
@@ -1270,14 +1302,39 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
         }
         else
         {
-            int w = 0.1 * mode->height;
-            int h = 0.1 * mode->height;
+            int w = 0.8 * mode->height;
+            int h = 0.5 * mode->height;
             int x = pos_x + 0.5 * (mode->width - w);
             int y = pos_y + 0.5 * (mode->height - h);
             // glfwSetWindowSize(a_window, w, h);
             glfwSetWindowMonitor(a_window, NULL, x, y, w, h, mode->refreshRate);
             // glfwSwapInterval(g_swapInterval);
         }
+    }
+
+    else if (a_key == GLFW_KEY_0)
+    {
+      g_subtask = DEFAULT;
+    }
+
+    else if (a_key == GLFW_KEY_1)
+    {
+      g_subtask = APPROACHING_RING;
+    }
+
+    else if (a_key == GLFW_KEY_2)
+    {
+      g_subtask = PICKING_UP_RING;
+    }
+
+    else if (a_key == GLFW_KEY_3)
+    {
+      g_subtask = APPROACHING_PEG;
+    }
+
+    else if (a_key == GLFW_KEY_4)
+    {
+      g_subtask = PLACING_RING_ON_PEG;
     }
 
     // option - help menu
@@ -1402,6 +1459,19 @@ void updateGraphics(int i)
       stereoMode = C_STEREO_DISABLED;
     }
 
+    if (i == 0)
+    {
+      g_labelSubtasks->setText("SUBTASK: " + SubtaskStrings[g_subtask]);
+      g_labelSubtasks->setLocalPos((int)(0.5 * (g_widths[i] - g_labelSubtasks->getWidth())),
+                                   g_heights[i] - g_labelSubtasks->getHeight() - 20);
+    }
+    else
+    {
+      g_labelSubtasks->setText("");
+    }
+
+
+    // std::cout << g_subtask << '\n';
     g_endoscope->m_camera->setStereoMode(stereoMode);
     // update shadow maps (if any)
     g_bulletWorld->updateShadowMaps(false, false);
@@ -1536,7 +1606,7 @@ void updateHaptics(void* a_arg){
         if(bGripper->m_gripper_pinch_btn >= 0){
             bGripper->set_gripper_angle(hDev->measured_gripper_angle());
             if(hDev->is_button_pressed(bGripper->m_gripper_pinch_btn)){
-                hDev->enable_force_feedback(true);
+                hDev->enable_force_feedback(false);
             }
         }
 
@@ -1547,6 +1617,15 @@ void updateHaptics(void* a_arg){
         bool btn_1_falling_edge = hDev->is_button_press_falling_edge(bGripper->act_1_btn);
         bool btn_2_rising_edge = hDev->is_button_press_rising_edge(bGripper->act_2_btn);
         bool btn_2_falling_edge = hDev->is_button_press_falling_edge(bGripper->act_2_btn);
+
+        if (hDev->is_button_pressed(bGripper->cam_minus_btn))
+        {
+          g_endoscope->updateInsertion(-0.000001);
+        }
+        if (hDev->is_button_pressed(bGripper->cam_plus_btn))
+        {
+          g_endoscope->updateInsertion(0.000001);
+        }
 
         double gripper_offset = 0;
         switch (g_coordApp->m_simModes){
@@ -1647,7 +1726,7 @@ void updateHaptics(void* a_arg){
         force  = - g_force_enable * bGripper->K_lh_ramp * (bGripper->K_lc * dpos + (bGripper->B_lc) * ddpos);
         torque = - g_force_enable * bGripper->K_ah_ramp * ((bGripper->K_ac * angle) * axis);
 
-        hDev->apply_wrench(force, torque);
+        // hDev->apply_wrench(force, torque);
 
         if (bGripper->K_lh_ramp < bGripper->K_lh)
         {

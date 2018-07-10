@@ -33,7 +33,7 @@
     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
     LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
     ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE. 
+    POSSIBILITY OF SUCH DAMAGE.
 
     \author    <http://www.chai3d.org>
     \author    Adnan Munawar, WPI.
@@ -119,13 +119,13 @@ cDvrkDevice::cDvrkDevice(unsigned int a_deviceNumber)
     /*
         DAMPING PROPERTIES:
 
-        Start with small values as damping terms can be high;y sensitive to 
+        Start with small values as damping terms can be high;y sensitive to
         the quality of your velocity signal and the spatial resolution of your
-        device. Try gradually increasing the values by using example "01-devices" 
+        device. Try gradually increasing the values by using example "01-devices"
         and by enabling viscosity with key command "2".
     */
     ////////////////////////////////////////////////////////////////////////////
-    
+
     // Maximum recommended linear damping factor Kv
     m_specifications.m_maxLinearDamping             = 20.0;   // [N/(m/s)]
 
@@ -174,7 +174,7 @@ cDvrkDevice::cDvrkDevice(unsigned int a_deviceNumber)
 
 
 
-        
+
     //sleep(8.0);
     if(mtm_device->is_available()){
         m_deviceAvailable = true;
@@ -472,7 +472,7 @@ bool cDvrkDevice::getGripperAngleRad(double& a_angle)
 
 //==============================================================================
 /*!
-    This method sends a force [N] and a torque [N*m] and gripper torque [N*m] 
+    This method sends a force [N] and a torque [N*m] and gripper torque [N*m]
     to your haptic device.
 
     \param   a_force  Force command.
@@ -518,7 +518,7 @@ bool cDvrkDevice::setForceAndTorqueAndGripperForce(const cVector3d& a_force,
 
 //==============================================================================
 /*!
-    This method returns status of all user switches 
+    This method returns status of all user switches
     [__true__ = __ON__ / __false__ = __OFF__].
 
     \param  a_userSwitches  Return the 32-bit binary mask of the device buttons.
@@ -535,9 +535,9 @@ bool cDvrkDevice::getUserSwitches(unsigned int& a_userSwitches)
     /*
         STEP 11:
 
-        Here you shall implement code that reads the status all user switches 
+        Here you shall implement code that reads the status all user switches
         on your device. For each user switch, set the associated bit on variable
-        a_userSwitches. If your device only has one user switch, then set 
+        a_userSwitches. If your device only has one user switch, then set
         a_userSwitches to 1, when the user switch is engaged, and 0 otherwise.
     */
     ////////////////////////////////////////////////////////////////////////////
@@ -547,6 +547,9 @@ bool cDvrkDevice::getUserSwitches(unsigned int& a_userSwitches)
     int gripper_bit = 0;
     int clutch_bit = 1;
     int coag_bit = 2;
+    int cam_plus_bit = 3;
+    int cam_minus_bit = 4;
+
     if(mtm_device->is_gripper_pressed())
         a_userSwitches |= (1<<gripper_bit);
     else
@@ -559,7 +562,14 @@ bool cDvrkDevice::getUserSwitches(unsigned int& a_userSwitches)
         a_userSwitches |= (1<<coag_bit);
     else
         a_userSwitches &= ~(1<<coag_bit);
-
+    if(mtm_device->is_cam_plus_pressed())
+        a_userSwitches |= (1<<cam_plus_bit);
+    else
+        a_userSwitches &= ~(1<<cam_plus_bit);
+    if(mtm_device->is_cam_minus_pressed())
+        a_userSwitches |= (1<<cam_minus_bit);
+    else
+        a_userSwitches &= ~(1<<cam_minus_bit);
     return (C_SUCCESS);
 }
 

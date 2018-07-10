@@ -122,6 +122,22 @@ void cBulletEndoscope::setCameraPosFromJoints()
   m_camera->setLocalPos(camera_pos);
 }
 
+void cBulletEndoscope::updateInsertion(double dlen)
+{
+  joint_angles[2] = joint_angles[2] + dlen;
+  if (joint_angles[2] > 2.4)
+  {
+    joint_angles[2] = 2.4;
+  }
+  if (joint_angles[2] < 0)
+  {
+    joint_angles[2] = 0;
+  }
+  setJointsFromCameraRot();
+  setCameraPosFromJoints();
+  setCameraRotFromJoints();
+}
+
 void cBulletEndoscope::setJointsFromCameraRot()
 {
   cMatrix3d camera_in_rcm_rot;
@@ -129,6 +145,7 @@ void cBulletEndoscope::setJointsFromCameraRot()
   joint_angles[1] = atan2(camera_in_rcm_rot(1,0), sqrt(pow(camera_in_rcm_rot(0,0),2)+pow(camera_in_rcm_rot(2,0),2)));
   joint_angles[0] = atan2(-camera_in_rcm_rot(0,0)/cos(joint_angles[1]), camera_in_rcm_rot(2,0)/cos(joint_angles[1]));
   joint_angles[3] = atan2(-camera_in_rcm_rot(1,1)/cos(joint_angles[1]), camera_in_rcm_rot(1,2)/cos(joint_angles[1]));
+  joint_angles[2] = joint_angles[2];
   if (abs(joint_angles[1])>1.5708)
     std::cout << joint_angles[0]  << '\t' << joint_angles[1] << '\t' << joint_angles[2]  << '\t' << joint_angles[3]  << '\t'<< '\n';
 }
