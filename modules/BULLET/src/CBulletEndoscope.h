@@ -98,6 +98,8 @@ public:
   void setCameraPosFromJoints();
   void setJointsFromCameraRot();
   void updateInsertion(double dlen);
+  void updateYaw(double dlen);
+  void updatePitch(double dlen);
   virtual void updateCmdFromROS(double dt);
   void updatePositionFromDynamics();
   cMatrix3d getCommandedRot();

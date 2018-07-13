@@ -66,11 +66,12 @@ cBulletGripper::cBulletGripper(cBulletWorld *bulletWorld, std::string a_gripperN
     bulletMeshGripperL2->setLocalRot(rotMat);
     jaw_open_lim = 2.2;
     jaw_close_lim = 3.13;
+    gripper_angle=1;
 }
 
 void cBulletGripper::build(){
-    setMass(0.05*m_scale);
-    buildContactTriangles(0.001);
+    setMass(0.05);
+    buildContactTriangles(0.01);
     // setShowFrame(true);
     estimateInertia();
     buildDynamicModel();
@@ -78,7 +79,7 @@ void cBulletGripper::build(){
 
 
     bulletMeshGripperL2->setMass(0.05);
-    bulletMeshGripperL2->buildContactTriangles(0.001);
+    bulletMeshGripperL2->buildContactTriangles(0.01);
     // bulletMeshGripperL2->setShowFrame(true);
     bulletMeshGripperL2->estimateInertia();
     bulletMeshGripperL2->buildDynamicModel();
@@ -110,8 +111,14 @@ void cBulletGripper::build(){
 
 void cBulletGripper::set_gripper_angle(const double &angle){
     double jaw_angle = cClamp(angle, 0.0, 1.0);
+    gripper_angle = jaw_angle;
     jaw_angle = jaw_open_lim + (1.0 - angle) * (jaw_close_lim - jaw_open_lim);
     bulletHinge->setMotorTarget(jaw_angle, 0.001);
+}
+
+double cBulletGripper::get_gripper_angle()
+{
+  return gripper_angle;
 }
 
 void cBulletGripper::set_scale(double a_scale){
@@ -189,4 +196,9 @@ void cBulletGripper::updateCmdFromROS(double dt){
             set_gripper_angle(m_rosObjPtr->m_afCmd.J_cmd[0]);
         }
     }
+
+  cVector3d cBulletGripper::getPos()
+  {
+    return ((this->getLocalPos()+bulletMeshGripperL2->getLocalPos())/2);
+  }
 }

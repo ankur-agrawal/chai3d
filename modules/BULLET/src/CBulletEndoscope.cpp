@@ -62,11 +62,11 @@ cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
 
 
   // set the near and far clipping planes of the camera
-  m_camera->setClippingPlanes(0.01, 10.0);
+  m_camera->setClippingPlanes(0.1, 100.0);
 
   // set stereo eye separation and focal length (applies only if stereo is enabled)
   m_camera->setStereoEyeSeparation(0.02);
-  m_camera->setStereoFocalLength(2.0);
+  m_camera->setStereoFocalLength(20.0);
 
   m_camera->setFieldViewAngleDeg(30);
   // set vertical mirrored display mode
@@ -113,7 +113,7 @@ void cBulletEndoscope::setCameraPosFromJoints()
 {
   cVector3d camera_pos_in_rcm;
 
-  camera_pos_in_rcm(0) = -cos(joint_angles[1])*sin(joint_angles[0])*joint_angles[2];
+  camera_pos_in_rcm(0) = cos(joint_angles[1])*sin(joint_angles[0])*joint_angles[2];
   camera_pos_in_rcm(1) = -sin(joint_angles[1])*joint_angles[2];
   camera_pos_in_rcm(2) = -cos(joint_angles[1])*cos(joint_angles[0])*joint_angles[2];
 
@@ -125,15 +125,45 @@ void cBulletEndoscope::setCameraPosFromJoints()
 void cBulletEndoscope::updateInsertion(double dlen)
 {
   joint_angles[2] = joint_angles[2] + dlen;
-  if (joint_angles[2] > 2.4)
+  if (joint_angles[2] > 24)
   {
-    joint_angles[2] = 2.4;
+    joint_angles[2] = 24;
   }
   if (joint_angles[2] < 0)
   {
     joint_angles[2] = 0;
   }
   setJointsFromCameraRot();
+  setCameraPosFromJoints();
+  setCameraRotFromJoints();
+}
+
+void cBulletEndoscope::updateYaw(double dlen)
+{
+  joint_angles[0] = joint_angles[0] + dlen;
+  if (joint_angles[0] > 1.5)
+  {
+    joint_angles[0] = 1.5;
+  }
+  if (joint_angles[0] < -1.5)
+  {
+    joint_angles[0] = -1.5;
+  }
+  setCameraPosFromJoints();
+  setCameraRotFromJoints();
+}
+
+void cBulletEndoscope::updatePitch(double dlen)
+{
+  joint_angles[1] = joint_angles[1] + dlen;
+  if (joint_angles[1] > 1.5)
+  {
+    joint_angles[1] = 1.5;
+  }
+  if (joint_angles[1] < -1.5)
+  {
+    joint_angles[1] = -1.5;
+  }
   setCameraPosFromJoints();
   setCameraRotFromJoints();
 }
@@ -193,13 +223,15 @@ void cBulletEndoscope::updateCmdFromROS(double dt){
             cmd_rot_mat_last=cmd_rot_mat;
         }
         else{
-
-            force.set(m_rosObjPtr->m_afCmd.Fx,
-                      m_rosObjPtr->m_afCmd.Fy,
-                      m_rosObjPtr->m_afCmd.Fz);
-            torque.set(m_rosObjPtr->m_afCmd.Nx,
-                       m_rosObjPtr->m_afCmd.Ny,
-                       m_rosObjPtr->m_afCmd.Nz);
+            if (m_rosObjPtr->m_afCmd.J_cmd.size() == 4)
+            {
+                joint_angles[0] = m_rosObjPtr->m_afCmd.J_cmd[0];
+                joint_angles[1] = m_rosObjPtr->m_afCmd.J_cmd[1];
+                joint_angles[2] = m_rosObjPtr->m_afCmd.J_cmd[2];
+                joint_angles[3] = m_rosObjPtr->m_afCmd.J_cmd[3];
+                setCameraPosFromJoints();
+                setCameraRotFromJoints();
+            }
         }
         // addExternalForce(force);
         // addExternalTorque(torque);
@@ -217,6 +249,7 @@ void cBulletEndoscope::updatePositionFromDynamics()
         pos=m_camera->getLocalPos();
         rot_mat=m_camera->getLocalRot();
         quat.fromRotMat(rot_mat);
+        quat.normalize();
 
         // update Transform data for m_rosObj
         if(m_rosObjPtr.get() != nullptr)

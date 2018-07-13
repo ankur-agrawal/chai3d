@@ -82,8 +82,10 @@ public:
 
 public:
     void set_gripper_angle(const double &angle);
+    double get_gripper_angle();
     void set_surface_props(GripperSurfaceProperties &props);
     void set_scale(double scale);
+    cVector3d getPos();
     void build();
     virtual void updateCmdFromROS(double dt=0.001);
 public:
@@ -93,7 +95,7 @@ public:
 private:
     btVector3 axisA, axisB, pvtA, pvtB;
     cMaterial mat;
-    double jaw_open_lim, jaw_close_lim;
+    double jaw_open_lim, jaw_close_lim, gripper_angle;
     double m_scale;
 };
 

@@ -55,6 +55,10 @@ using namespace std;
 
 #include <openhmd/openhmd.h>
 
+#include <fstream>
+
+#define PI 3.1415926535
+
 //---------------------------------------------------------------------------
 // GENERAL SETTINGS
 //---------------------------------------------------------------------------
@@ -127,6 +131,7 @@ cSpotLight *g_light;
 cLabel* g_labelRates;
 cLabel* g_labelDevRates[10];
 cLabel* g_labelTimes;
+cLabel* g_labelModes;
 cLabel* g_labelSubtasks;
 cLabel* g_labelBtnAction;
 std::string g_btn_action_str = "";
@@ -155,6 +160,7 @@ cFrequencyCounter g_freqCounterHaptics;
 cThread* g_hapticsThreads[10];
 // bullet simulation thread
 cThread* g_bulletSimThread;
+cThread* g_dataCollectionThread;
 
 // a handle to window display context
 GLFWwindow* g_window = NULL;
@@ -195,6 +201,9 @@ std::vector<string> SubtaskStrings = { "Unknown action",
 
 SUBTASKS g_subtask = DEFAULT;
 
+int target_cylinder=12;
+bool g_game_over = false;
+
 
 //---------------------------------------------------------------------------
 // DECLARED MACROS
@@ -224,6 +233,9 @@ void updateHaptics(void*);
 
 //this function contains the main Bullet Simulation loop
 void updateBulletSim(void);
+
+//this function contains the main data collection loop
+void collectData(void*);
 
 // this function closes the application
 void close(void);
@@ -285,9 +297,9 @@ private:
 
 cShapeSphere* Device::create_cursor(cBulletWorld* a_world){
     m_cursor = new cShapeSphere(0.05);
-    m_cursor->setShowEnabled(true);
-    m_cursor->setShowFrame(true);
-    m_cursor->setFrameSize(0.1);
+    m_cursor->setShowEnabled(false);
+    m_cursor->setShowFrame(false);
+    m_cursor->setFrameSize(0.01);
     cMaterial mat;
     mat.setGreenLightSea();
     m_cursor->setMaterial(mat);
@@ -409,12 +421,12 @@ void Device::apply_wrench(cVector3d force, cVector3d torque){
 class Sim{
 public:
     Sim(){
-        m_workspaceScaleFactor = 30.0;
+        m_workspaceScaleFactor = 100.0;
         K_lh = 0.02;
         K_lh_ramp = 0.0;
         K_ah_ramp = 0.0;
         K_ah = 0.03;
-        K_lc = 200;
+        K_lc = 200;//200,60
         K_ac = 30;
         B_lc = 5.0;
         B_ac = 3.0;
@@ -688,7 +700,7 @@ void Coordination::open_devices(){
     for (int i = 0 ; i < m_num_devices ; i++){
         m_hapticDevices[i].m_hDevice->open();
         std::string name = "Device" + std::to_string(i+1);
-        // m_hapticDevices[i].create_cursor(m_bulletWorld);
+        m_hapticDevices[i].create_cursor(m_bulletWorld);
     }
 }
 
@@ -1008,28 +1020,6 @@ int main(int argc, char* argv[])
     // sets the swap interval for the current display context
     glfwSwapInterval(g_swapInterval);
 
-    // g_window2 = glfwCreateWindow(w, h, "CHAI3D", NULL, g_window);
-    // if (!g_window2)
-    // {
-    //     cout << "failed to create window2" << endl;
-    //     cSleepMs(1000);
-    //     glfwTerminate();
-    //     return 1;
-    // }
-    //
-    // glfwGetWindowSize(g_window2, &g_width2, &g_height2);
-    //
-    // glfwSetWindowPos(g_window2, x+50, y+50);
-    //
-    //
-    // glfwSetKeyCallback(g_window2, keyCallback);
-    //
-    //
-    // glfwSetWindowSizeCallback(g_window2, windowSizeCallback);
-    //
-    //
-    // glfwMakeContextCurrent(g_window2);
-
     // initialize GLEW library
 #ifdef GLEW_VERSION
     if (glewInit() != GLEW_OK)
@@ -1053,18 +1043,15 @@ int main(int argc, char* argv[])
     // g_bulletWorld->m_backgroundColor.setWhite();
 
     // create a camera and insert it into the virtual world
-    g_endoscope = new cBulletEndoscope(g_bulletWorld, cVector3d(0,0,2.5), cMatrix3d(1,0,0,0,1,0,0,0,1), 0, 0, 0.5, 0, "ecm");
-
-
-    // g_camera = new cCamera(g_bulletWorld);
-    // g_bulletWorld->addChild(g_camera);
+    g_endoscope = new cBulletEndoscope(g_bulletWorld,
+                                       cVector3d(3 + 5*cos(PI/3),0,6+5*sin(PI/3)),
+                                       cMatrix3d(0,-sin(PI/3),cos(PI/3),1,0,0,0,cos(PI/3),sin(PI/3)),
+                                       0, 0, 5, 0, "ecm");
 
     // position and orient the camera
     // g_endoscope->m_camera->set(cVector3d(1.0, 0.0, 1.7),    // camera position (eye)
     //             cVector3d(0.0, 0.0,0.0),    // lookat position (target)
     //             cVector3d(0.0, 0.0, 1.0));   // direction of the "up" vector
-
-    // std::cout << g_endoscope->m_camera->getLocalRot().str(2) << '\n';
 
     // create a light source
     g_light = new cSpotLight(g_bulletWorld);
@@ -1076,7 +1063,7 @@ int main(int argc, char* argv[])
     g_light->setEnabled(true);
 
     // position the light source
-    g_light->setLocalPos( 0, 0, 2);
+    g_light->setLocalPos( 0, 0, 7);
 
     // define the direction of the light beam
     g_light->setDir(0,0,-1.0);
@@ -1108,24 +1095,24 @@ int main(int argc, char* argv[])
     cMaterial meshMat;
 
     g_bulletTorus = new cBulletMultiMesh(g_bulletWorld, "Torus");
-    g_bulletTorus->loadFromFile(RESOURCE_PATH("../resources/models/gear/torus.3ds"));
-    g_bulletTorus->scale(0.075);
+    g_bulletTorus->loadFromFile(RESOURCE_PATH("../resources/models/gear/ring2.stl"));
+    g_bulletTorus->scale(0.25);
     g_bulletWorld->addChild(g_bulletTorus);
-    g_bulletTorus->buildContactTriangles(0.001);
-    g_bulletTorus->setMass(0.15);
+    g_bulletTorus->buildContactTriangles(0.01);
+    g_bulletTorus->setMass(0.5);
     g_bulletTorus->estimateInertia();
     g_bulletTorus->buildDynamicModel();
     meshMat.setBlueLightSteel();
     g_bulletTorus->setMaterial(meshMat);
     g_bulletTorus->m_bulletRigidBody->setFriction(1);
-    g_bulletTorus->setLocalPos(cVector3d(0,0,0.03));
+    g_bulletTorus->setLocalPos(cVector3d(0,0,0.3));
 
     for (int i=0; i<n_cylinders; i++)
     {
-      g_bulletCylinder[i] = new cBulletCylinder(g_bulletWorld, 0.3, 0.02);
+      g_bulletCylinder[i] = new cBulletCylinder(g_bulletWorld, 0.75, 0.05);
       g_bulletWorld->addChild(g_bulletCylinder[i]);
-      g_bulletCylinder[i]->setLocalPos(cVector3d((double)(0.3*(i/5 - 2)),(double)(0.3*((i%5)-2)),0.151));
-      g_bulletCylinder[i]->buildContactTriangles(0.001);
+      g_bulletCylinder[i]->setLocalPos(cVector3d((double)(1*(i/5 - 2)),(double)(1*((i%5)-2)),0.151));
+      g_bulletCylinder[i]->buildContactTriangles(0.01);
       // g_bulletCylinder[i]->setMass(1);
       // g_bulletCylinder[i]->estimateInertia();
       g_bulletCylinder[i]->buildDynamicModel();
@@ -1140,13 +1127,27 @@ int main(int argc, char* argv[])
     //--------------------------------------------------------------------------
 
     // create a font
-    cFontPtr font = NEW_CFONTCALIBRI40();
+    cFontPtr font = NEW_CFONTCALIBRI20();
+    cFontPtr font2 = NEW_CFONTCALIBRI26();
 
     // create a label to display the haptic and graphic rate of the simulation
-    g_labelSubtasks = new cLabel(font);
+    g_labelSubtasks = new cLabel(font2);
     g_labelSubtasks->m_fontColor.setWhite();
     // g_labelSubtasks->m_fontSize(20)
     g_endoscope->m_camera->m_frontLayer->addChild(g_labelSubtasks);
+
+    g_labelRates = new cLabel(font);
+    g_labelTimes = new cLabel(font);
+    g_labelModes = new cLabel(font);
+    g_labelBtnAction = new cLabel(font);
+    g_labelRates->m_fontColor.setWhite();
+    g_labelTimes->m_fontColor.setWhite();
+    g_labelModes->m_fontColor.setWhite();
+    g_labelBtnAction->m_fontColor.setWhite();
+    g_endoscope->m_camera->m_frontLayer->addChild(g_labelRates);
+    g_endoscope->m_camera->m_frontLayer->addChild(g_labelTimes);
+    g_endoscope->m_camera->m_frontLayer->addChild(g_labelModes);
+    g_endoscope->m_camera->m_frontLayer->addChild(g_labelBtnAction);
 
 
     g_coordApp = std::make_shared<Coordination>(g_bulletWorld, num_devices_to_load);
@@ -1163,7 +1164,7 @@ int main(int argc, char* argv[])
     g_bulletWorld->addChild(g_bulletGround);
 
     // create a mesh plane where the static plane is located
-    cCreatePlane(g_bulletGround, 3.0, 3.0, g_bulletGround->getPlaneConstant() * g_bulletGround->getPlaneNormal());
+    cCreatePlane(g_bulletGround, 10.0, 10.0, g_bulletGround->getPlaneConstant() * g_bulletGround->getPlaneNormal());
 
     // define some material properties and apply to mesh
     cMaterial matGround;
@@ -1186,6 +1187,19 @@ int main(int argc, char* argv[])
     //create a thread which starts the Bullet Simulation loop
     g_bulletSimThread = new cThread();
     g_bulletSimThread->start(updateBulletSim, CTHREAD_PRIORITY_HAPTICS);
+
+    for (int i = 0 ; i < g_coordApp->m_num_devices ; i++){
+        g_labelDevRates[i] = new cLabel(font);
+        g_labelDevRates[i]->m_fontColor.setBlack();
+        g_labelDevRates[i]->setFontScale(0.8);
+        g_endoscope->m_camera->m_frontLayer->addChild(g_labelDevRates[i]);
+    }
+
+    if (argc > 1)
+    {
+      g_dataCollectionThread = new cThread();
+      g_dataCollectionThread->start(collectData, CTHREAD_PRIORITY_HAPTICS, argv[1]);
+    }
 
     // setup callback when application exits
     atexit(close);
@@ -1355,6 +1369,90 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
         cout << "[q] - Exit application\n" << endl;
         cout << endl << endl;
     }
+    else if (a_key == GLFW_KEY_UP)
+    {
+      g_endoscope->updateInsertion(0.1);
+    }
+    else if (a_key == GLFW_KEY_DOWN)
+    {
+      g_endoscope->updateInsertion(-0.1);
+    }
+    else if (a_key == GLFW_KEY_I)
+    {
+      g_endoscope->updatePitch(-0.01);
+    }
+    else if (a_key == GLFW_KEY_K)
+    {
+      g_endoscope->updatePitch(0.01);
+    }
+    else if (a_key == GLFW_KEY_J)
+    {
+      g_endoscope->updateYaw(-0.01);
+    }
+    else if (a_key == GLFW_KEY_L)
+    {
+      g_endoscope->updateYaw(0.01);
+    }
+
+    // option - decrease linear haptic gain
+    else if (a_key == GLFW_KEY_Z)
+    {
+        printf("linear haptic gain:  %f\n", g_coordApp->increment_K_lh(-0.05));
+    }
+
+    // option - increase linear haptic gain
+    else if (a_key == GLFW_KEY_X)
+    {
+        printf("linear haptic gain:  %f\n", g_coordApp->increment_K_lh(0.05));
+    }
+
+    // option - decrease angular haptic gain
+    else if (a_key == GLFW_KEY_C)
+    {
+        printf("angular haptic gain:  %f\n", g_coordApp->increment_K_ah(-0.05));
+    }
+
+    // option - increase angular haptic gain
+    else if (a_key == GLFW_KEY_V)
+    {
+        printf("angular haptic gain:  %f\n", g_coordApp->increment_K_ah(0.05));
+    }
+
+    // option - decrease linear stiffness
+    else if (a_key == GLFW_KEY_B)
+    {
+        printf("linear stiffness:  %f\n", g_coordApp->increment_K_lc(-50));
+    }
+
+    // option - increase linear stiffness
+    else if (a_key == GLFW_KEY_N)
+    {
+        printf("linear stiffness:  %f\n", g_coordApp->increment_K_lc(50));
+    }
+
+    // option - decrease angular stiffness
+    else if (a_key == GLFW_KEY_M)
+    {
+        printf("angular stiffness:  %f\n", g_coordApp->increment_K_ac(-1));
+    }
+
+    // option - increase angular stiffness
+    else if (a_key == GLFW_KEY_F)
+    {
+        printf("angular stiffness:  %f\n", g_coordApp->increment_K_ac(1));
+    }
+     // // option - open gripper
+     // else if (a_key == GLFW_KEY_S)
+     // {
+     //     grip_angle -= 0.01;
+     //     printf("gripper angle:  %f\n", grip_angle);
+     // }
+     // // option - open close gripper
+     // else if (a_key == GLFW_KEY_D)
+     // {
+     //     grip_angle += 0.01;
+     //     printf("gripper angle:  %f\n", grip_angle);
+     // }
 }
 
 //---------------------------------------------------------------------------
@@ -1403,7 +1501,7 @@ bool round_complete(int target)
   }
   cVector3d target_pos = g_bulletCylinder[target]->getLocalPos();
   cVector3d ring_pos = g_bulletTorus->getLocalPos();
-  if ( (abs(target_pos(0)-ring_pos(0))<0.05) && (abs(target_pos(1)-ring_pos(1))<0.05) && (ring_pos(2) < 0.05))
+  if ( (abs(target_pos(0)-ring_pos(0))<0.1) && (abs(target_pos(1)-ring_pos(1))<0.1) && (ring_pos(2) < 0.1))
   {
     flag = true;
   }
@@ -1413,7 +1511,6 @@ bool round_complete(int target)
 
 void updateGame()
 {
-  static int target_cylinder=12;
   static int count_success = -1;
 
   cMaterial meshMat;
@@ -1428,9 +1525,10 @@ void updateGame()
     target_cylinder=randomPick();
   }
 
-  if (count_success==5)
+  if (count_success==0)
   {
-    glfwSetWindowShouldClose(g_windows[0], GLFW_TRUE);
+    g_game_over = true;
+    // glfwSetWindowShouldClose(g_windows[0], GLFW_TRUE);
   }
 
   if ((int) (10*g_clockWorld.getCurrentTimeSeconds()) % 10 < 5)
@@ -1464,17 +1562,52 @@ void updateGraphics(int i)
       g_labelSubtasks->setText("SUBTASK: " + SubtaskStrings[g_subtask]);
       g_labelSubtasks->setLocalPos((int)(0.5 * (g_widths[i] - g_labelSubtasks->getWidth())),
                                    g_heights[i] - g_labelSubtasks->getHeight() - 20);
+
+       // update haptic and graphic rate data
+       g_labelTimes->setText("Wall Time: " + cStr(g_clockWorld.getCurrentTimeSeconds(),2) + " s" +
+                           + " / "+" Simulation Time: " + cStr(g_bulletWorld->getSimulationTime(),2) + " s");
+       g_labelRates->setText(cStr(g_freqCounterGraphics.getFrequency(), 0) + " Hz / " + cStr(g_freqCounterHaptics.getFrequency(), 0) + " Hz");
+       g_labelModes->setText("MODE: " + g_coordApp->m_mode_str);
+       g_labelBtnAction->setText(" : " + g_btn_action_str);
+
+       for (int j = 0 ; j < g_coordApp->m_num_devices ; j++){
+           g_labelDevRates[j]->setText(g_coordApp->m_hapticDevices[j].m_hInfo.m_modelName + ": " + cStr(g_coordApp->m_hapticDevices[j].m_freq_ctr.getFrequency(), 0) + " Hz");
+           g_labelDevRates[j]->setLocalPos(10, (int)(g_heights[j] - (j+1)*20));
+       }
+
+       // update position of label
+       g_labelTimes->setLocalPos((int)(0.5 * (g_widths[i] - g_labelTimes->getWidth())), 30);
+       g_labelRates->setLocalPos((int)(0.5 * (g_widths[i] - g_labelRates->getWidth())), 10);
+       g_labelModes->setLocalPos((int)(0.5 * (g_widths[i] - g_labelModes->getWidth())), 50);
+       g_labelBtnAction->setLocalPos((int)(0.5 * (g_widths[i] - g_labelModes->getWidth()) + g_labelModes->getWidth()), 50);
     }
     else
     {
       g_labelSubtasks->setText("");
+      g_labelRates->setText("");
+      g_labelModes->setText("");
+     g_labelBtnAction->setText("");
     }
 
-
-    // std::cout << g_subtask << '\n';
     g_endoscope->m_camera->setStereoMode(stereoMode);
     // update shadow maps (if any)
     g_bulletWorld->updateShadowMaps(false, false);
+
+    if (g_game_over)
+    {
+      cBackground* frontground = new cBackground();
+
+      // load an texture map
+      bool fileload;
+      fileload = frontground->loadFromFile(RESOURCE_PATH("../resources/images/game_over.png"));
+
+      if (!fileload)
+      {
+          cout << "Error - Image failed to load correctly." << endl;
+      }
+
+      g_endoscope->m_camera->m_frontLayer->addChild(frontground);
+    }
 
     // render world
     g_endoscope->m_camera->renderView(g_widths[i], g_heights[i]);
@@ -1606,7 +1739,7 @@ void updateHaptics(void* a_arg){
         if(bGripper->m_gripper_pinch_btn >= 0){
             bGripper->set_gripper_angle(hDev->measured_gripper_angle());
             if(hDev->is_button_pressed(bGripper->m_gripper_pinch_btn)){
-                hDev->enable_force_feedback(false);
+                hDev->enable_force_feedback(true);
             }
         }
 
@@ -1620,11 +1753,11 @@ void updateHaptics(void* a_arg){
 
         if (hDev->is_button_pressed(bGripper->cam_minus_btn))
         {
-          g_endoscope->updateInsertion(-0.000001);
+          g_endoscope->updateInsertion(-0.001);
         }
         if (hDev->is_button_pressed(bGripper->cam_plus_btn))
         {
-          g_endoscope->updateInsertion(0.000001);
+          g_endoscope->updateInsertion(0.001);
         }
 
         double gripper_offset = 0;
@@ -1726,7 +1859,7 @@ void updateHaptics(void* a_arg){
         force  = - g_force_enable * bGripper->K_lh_ramp * (bGripper->K_lc * dpos + (bGripper->B_lc) * ddpos);
         torque = - g_force_enable * bGripper->K_ah_ramp * ((bGripper->K_ac * angle) * axis);
 
-        // hDev->apply_wrench(force, torque);
+        hDev->apply_wrench(force, torque);
 
         if (bGripper->K_lh_ramp < bGripper->K_lh)
         {
@@ -1748,4 +1881,83 @@ void updateHaptics(void* a_arg){
         bGripper->set_loop_exec_flag();
     }
     // exit haptics thread
+}
+
+void collectData(void* a_arg)
+{
+  char* filename = (char*) a_arg;
+  std::string file_str = std::string(filename);
+  ofstream dataFile;
+  dataFile.open(RESOURCE_PATH("../resources/data/"+file_str+".csv"));
+  if (!dataFile.is_open())
+  {
+    std::cout << "Data is not being saved" << '\n';
+  }
+  bool first_row = true;
+  RateSleep rateSleep(1000);
+  while (g_simulationRunning && dataFile.is_open())
+  {
+    // if (first_row)
+    // {
+      // dataFile << "Time" <<'\t';
+      // dataFile << "N_devices";
+      // dataFile << ""
+    //   dataFile << "Device.X" <<'\t';
+    //   dataFile << "Device.Y" <<'\t';
+    //   dataFile << "Device.Z" <<'\t';
+      // dataFile << '\n';
+      // first_row = false;
+    // }
+    dataFile << g_clockWorld.getCurrentTimeSeconds() << '\t';
+    for (int i=0;i<4;i++)
+    {
+      dataFile << g_endoscope->joint_angles[i] << '\t';
+    }
+    dataFile << g_endoscope->m_camera->getLocalPos().x() << '\t';
+    dataFile << g_endoscope->m_camera->getLocalPos().y() << '\t';
+    dataFile << g_endoscope->m_camera->getLocalPos().z() << '\t';
+    for (int i=0;i<3;i++)
+    {
+      dataFile << g_endoscope->m_camera->getLocalRot().getRow(i).x() << '\t';
+      dataFile << g_endoscope->m_camera->getLocalRot().getRow(i).y() << '\t';
+      dataFile << g_endoscope->m_camera->getLocalRot().getRow(i).z() << '\t';
+    }
+    dataFile << g_endoscope->rcm_pos.x() << '\t';
+    dataFile << g_endoscope->rcm_pos.y() << '\t';
+    dataFile << g_endoscope->rcm_pos.z() << '\t';
+    for (int i=0;i<3;i++)
+    {
+      dataFile << g_endoscope->rcm_rot.getRow(i).x() << '\t';
+      dataFile << g_endoscope->rcm_rot.getRow(i).y() << '\t';
+      dataFile << g_endoscope->rcm_rot.getRow(i).z() << '\t';
+    }
+    dataFile << g_bulletTorus->getLocalPos().x() << '\t';
+    dataFile << g_bulletTorus->getLocalPos().y() << '\t';
+    dataFile << g_bulletTorus->getLocalPos().z() << '\t';
+
+    dataFile << g_bulletCylinder[target_cylinder]->getLocalPos().x() << '\t';
+    dataFile << g_bulletCylinder[target_cylinder]->getLocalPos().y() << '\t';
+    dataFile << g_bulletCylinder[target_cylinder]->getLocalPos().z() << '\t';
+
+    dataFile << g_subtask <<'\t';
+
+    if (g_coordApp->m_num_devices > 0)
+    {
+      dataFile << g_coordApp->m_bulletTools[0].gripper->getPos().x() << '\t';
+      dataFile << g_coordApp->m_bulletTools[0].gripper->getPos().y() << '\t';
+      dataFile << g_coordApp->m_bulletTools[0].gripper->getPos().z() << '\t';
+      for (int i=0;i<3;i++)
+      {
+        dataFile << g_coordApp->m_bulletTools[0].gripper->getLocalRot().getRow(i).x() << '\t';
+        dataFile << g_coordApp->m_bulletTools[0].gripper->getLocalRot().getRow(i).y() << '\t';
+        dataFile << g_coordApp->m_bulletTools[0].gripper->getLocalRot().getRow(i).z() << '\t';
+      }
+      dataFile << g_coordApp->m_bulletTools[0].gripper->get_gripper_angle();
+    }
+    dataFile << '\n';
+
+    rateSleep.sleep();
+  }
+
+  dataFile.close();
 }
