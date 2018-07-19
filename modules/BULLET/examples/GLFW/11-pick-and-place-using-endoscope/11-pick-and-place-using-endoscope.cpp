@@ -134,6 +134,7 @@ cLabel* g_labelTimes;
 cLabel* g_labelModes;
 cLabel* g_labelSubtasks;
 cLabel* g_labelBtnAction;
+cLabel* g_labelGameOver;
 std::string g_btn_action_str = "";
 bool g_cam_btn_pressed = false;
 bool g_clutch_btn_pressed = false;
@@ -203,6 +204,8 @@ SUBTASKS g_subtask = DEFAULT;
 
 int target_cylinder=12;
 bool g_game_over = false;
+
+cShaderProgramPtr programShader;
 
 
 //---------------------------------------------------------------------------
@@ -982,11 +985,11 @@ int main(int argc, char* argv[])
 
       if (i==0)
       {  // create display context
-        g_windows[i] = glfwCreateWindow(w, h, "CHAI3D", NULL, NULL);
+        g_windows[i] = glfwCreateWindow(w, h, "CHAI3D", monitors[i], NULL);
       }
       else
       {
-        g_windows[i] = glfwCreateWindow(w, h, "CHAI3D", NULL, g_windows[0]);
+        g_windows[i] = glfwCreateWindow(w, h, "CHAI3D", monitors[i], g_windows[0]);
       }
       if (!g_windows[i])
       {
@@ -1129,6 +1132,7 @@ int main(int argc, char* argv[])
     // create a font
     cFontPtr font = NEW_CFONTCALIBRI20();
     cFontPtr font2 = NEW_CFONTCALIBRI26();
+    cFontPtr font3 = NEW_CFONTCALIBRI144();
 
     // create a label to display the haptic and graphic rate of the simulation
     g_labelSubtasks = new cLabel(font2);
@@ -1140,14 +1144,17 @@ int main(int argc, char* argv[])
     g_labelTimes = new cLabel(font);
     g_labelModes = new cLabel(font);
     g_labelBtnAction = new cLabel(font);
+    g_labelGameOver = new cLabel(font3);
     g_labelRates->m_fontColor.setWhite();
     g_labelTimes->m_fontColor.setWhite();
     g_labelModes->m_fontColor.setWhite();
+    g_labelGameOver->m_fontColor.setWhite();
     g_labelBtnAction->m_fontColor.setWhite();
     g_endoscope->m_camera->m_frontLayer->addChild(g_labelRates);
     g_endoscope->m_camera->m_frontLayer->addChild(g_labelTimes);
     g_endoscope->m_camera->m_frontLayer->addChild(g_labelModes);
     g_endoscope->m_camera->m_frontLayer->addChild(g_labelBtnAction);
+    g_endoscope->m_camera->m_frontLayer->addChild(g_labelGameOver);
 
 
     g_coordApp = std::make_shared<Coordination>(g_bulletWorld, num_devices_to_load);
@@ -1160,11 +1167,11 @@ int main(int argc, char* argv[])
     // create ground plane
     g_bulletGround = new cBulletStaticPlane(g_bulletWorld, cVector3d(0.0, 0.0, 1.0), 0);
 
-    // add plane to world as we will want to make it visibe
-    g_bulletWorld->addChild(g_bulletGround);
-
     // create a mesh plane where the static plane is located
     cCreatePlane(g_bulletGround, 10.0, 10.0, g_bulletGround->getPlaneConstant() * g_bulletGround->getPlaneNormal());
+
+    // add plane to world as we will want to make it visibe
+    g_bulletWorld->addChild(g_bulletGround);
 
     // define some material properties and apply to mesh
     cMaterial matGround;
@@ -1172,6 +1179,47 @@ int main(int argc, char* argv[])
     matGround.m_emission.setGrayLevel(0);
     g_bulletGround->setMaterial(matGround);
     g_bulletGround->m_bulletRigidBody->setFriction(1);
+
+    // cShaderPtr vertexShader = cShader::create(C_VERTEX_SHADER);
+    //
+    // bool fileload;
+    // // load vertex shader from file
+    // fileload = vertexShader->loadSourceFile(RESOURCE_PATH("../resources/shaders/myshader.vert"));
+    //
+    // std::cout << "vertex file loaded?" << fileload << '\n';
+    //
+    // // create fragment shader
+    // cShaderPtr fragmentShader = cShader::create(C_FRAGMENT_SHADER);
+    //
+    // // load fragment shader from file
+    // fileload = fragmentShader->loadSourceFile(RESOURCE_PATH("../resources/shaders/myshader.frag"));
+    //
+    // std::cout << "fragment file loaded?" << fileload << '\n';
+    //
+    // // create program shader
+    // programShader = cShaderProgram::create();
+    //
+    // // assign vertex shader to program shader
+    // programShader->attachShader(vertexShader);
+    // programShader->attachShader(fragmentShader);
+    //
+    // // assign program shader to object
+    // g_bulletWorld->setShaderProgram(programShader, true);
+    // g_bulletGround->setShaderProgram(programShader, true);
+    // // g_bulletCylinder[0]->setShaderProgram(programShader, true);
+    // // g_bulletCylinder[1]->setShaderProgram(programShader, true);
+    // // g_bulletCylinder[2]->setShaderProgram(programShader, true);
+    // // g_bulletCylinder[3]->setShaderProgram(programShader, true);
+    // // g_bulletCylinder[4]->setShaderProgram(programShader, true);
+    // // programShader->getUniformLocation()
+    // // std::cout << programShader->getUniformLocation("uColorMap") << '\n';
+    // programShader->linkProgram();
+    //
+    // programShader->setUniformi("uColorMap", 0);
+    // programShader->setUniformi("uShadowMap", 0);
+    // programShader->setUniformi("uNormalMap", 2);
+    // programShader->setUniformf("uInvRadius", 0.0f);
+    // programShader->setUniformi("uColorMap", 0);
 
     //-----------------------------------------------------------------------
     // START SIMULATION
@@ -1351,6 +1399,11 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
       g_subtask = PLACING_RING_ON_PEG;
     }
 
+    else if (a_key == GLFW_KEY_R)
+    {
+      g_endoscope->reset();
+    }
+
     // option - help menu
     else if (a_key == GLFW_KEY_H)
     {
@@ -1437,10 +1490,10 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
     }
 
     // option - increase angular stiffness
-    else if (a_key == GLFW_KEY_F)
-    {
-        printf("angular stiffness:  %f\n", g_coordApp->increment_K_ac(1));
-    }
+    // else if (a_key == GLFW_KEY_F)
+    // {
+    //     printf("angular stiffness:  %f\n", g_coordApp->increment_K_ac(1));
+    // }
      // // option - open gripper
      // else if (a_key == GLFW_KEY_S)
      // {
@@ -1525,9 +1578,11 @@ void updateGame()
     target_cylinder=randomPick();
   }
 
-  if (count_success==0)
+  if (count_success==5)
   {
     g_game_over = true;
+    g_simulationRunning = false;
+    g_simulationFinished = true;
     // glfwSetWindowShouldClose(g_windows[0], GLFW_TRUE);
   }
 
@@ -1595,18 +1650,19 @@ void updateGraphics(int i)
 
     if (g_game_over)
     {
-      cBackground* frontground = new cBackground();
 
-      // load an texture map
-      bool fileload;
-      fileload = frontground->loadFromFile(RESOURCE_PATH("../resources/images/game_over.png"));
-
-      if (!fileload)
-      {
-          cout << "Error - Image failed to load correctly." << endl;
-      }
-
-      g_endoscope->m_camera->m_frontLayer->addChild(frontground);
+      // // load an texture map
+      // bool fileload;
+      // fileload = frontground->loadFromFile(RESOURCE_PATH("../resources/images/game_over.png"));
+      //
+      // if (!fileload)
+      // {
+      //     cout << "Error - Image failed to load correctly." << endl;
+      // }
+      //
+      // g_endoscope->m_camera->m_frontLayer->addChild(frontground);
+      g_labelGameOver->setText("Congratulations!!\nGame Completed.\nPress q or esc to exit");
+      g_labelGameOver->setLocalPos((int)(0.5 * (g_widths[i] - g_labelGameOver->getWidth())),0.5 * (g_heights[i] - g_labelGameOver->getHeight()));
     }
 
     // render world
@@ -1689,6 +1745,13 @@ void updateBulletSim(){
 
             g_coordApp->m_bulletTools[i].apply_force(force);
             g_coordApp->m_bulletTools[i].apply_torque(torque);
+            // g_coordApp->m_bulletTools[i].gripper->setLocalRot(g_coordApp->m_bulletTools[i].m_rotRef);
+            // cMatrix3d rotMat, new_rotMat;
+            // rotMat.setAxisAngleRotationDeg(1,0,0,180);
+            // g_coordApp->m_bulletTools[i].m_rotRef.mulr(rotMat, new_rotMat);
+            // g_coordApp->m_bulletTools[i].gripper->bulletMeshGripperL2->setLocalRot(new_rotMat);
+            // g_coordApp->m_bulletTools[i].gripper->setLocalPos(g_coordApp->m_bulletTools[i].m_posRef);
+            // g_coordApp->m_bulletTools[i].gripper->setLocalPos(g_coordApp->m_bulletTools[i].m_posRef + g_coordApp->m_bulletTools[i].gripper->getLocalRot()*cVector3d(0,0.4,0));
         }
         g_bulletWorld->updateDynamics(dt, g_clockWorld.getCurrentTimeSeconds(), g_freqCounterHaptics.getFrequency(), g_coordApp->m_num_devices);
         g_coordApp->clear_all_haptics_loop_exec_flags();

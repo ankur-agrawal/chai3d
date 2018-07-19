@@ -1,8 +1,6 @@
-#version 130
-
 uniform sampler2D uColorMap;
 
-out vec4 fragmentColour;
+// out vec4 fragmentColour;
 
 /* Parameters from mt3d forums */
 const vec2 LeftLensCenter = vec2(0.2863248, 0.5);
@@ -42,11 +40,16 @@ void main()
 	vec2 tc = HmdWarp(oTexCoord, LensCenter);
 	if (any(bvec2(clamp(tc,ScreenCenter-vec2(0.25,0.5), ScreenCenter+vec2(0.25,0.5)) - tc)))
 	{
-		fragmentColour = vec4(0.0, 0.0, 0.0, 1.0);
+		gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
 		return;
 	}
 
 	tc.x = gl_FragCoord.x < 640 ? (2.0 * tc.x) : (2.0 * (tc.x - 0.5));
- 	fragmentColour = vec4(0.5,0.0,0,1.0);
+ 	vec4 base = texture2D(uColorMap, vec2(tc.x, 1-tc.y));
+
+	vec4 vAmbient = gl_FrontMaterial.ambient;
+	vec4 vSpecular = gl_FrontMaterial.specular;
+	vec4 vDiffuse = gl_FrontMaterial.diffuse;
+	gl_FragColor = vAmbient*base + vDiffuse*base + vSpecular;
 
 }

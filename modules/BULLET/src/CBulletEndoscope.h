@@ -94,6 +94,7 @@ public:
     }
   };
 
+  void reset();
   void setCameraRotFromJoints();
   void setCameraPosFromJoints();
   void setJointsFromCameraRot();
@@ -107,7 +108,7 @@ public:
   cCamera* m_camera;
   cMatrix3d cur_rot_mat, cmd_rot_mat, cmd_rot_mat_last;
   cMatrix3d oculus_ecm_rot_mat;
-  std::vector<double> joint_angles;
+  std::vector<double> joint_angles, init_joint_angles, last_joint_angles, new_joint_angles;
   cVector3d rcm_pos;
   cMatrix3d rcm_rot;
   cVector3d camera_pos;

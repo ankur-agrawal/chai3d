@@ -101,6 +101,8 @@ void cBulletGripper::build(){
     GripperSurfaceProperties props;
     props.set_default();
     props.lin_damping = 0.5;
+    props.friction = 1;
+    props.rolling_friction = 0.5;
     set_surface_props(props);
 
     mat.setBlueLightSteel();

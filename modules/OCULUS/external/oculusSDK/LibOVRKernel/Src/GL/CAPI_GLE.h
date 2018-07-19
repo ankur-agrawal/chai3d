@@ -26,7 +26,7 @@ limitations under the License.
 #define OVR_CAPI_GLE_h
 
 
-#include "Kernel/OVR_Types.h"
+#include "OVR_Types.h"
 #include "CAPI_GLE_GL.h"
 
 

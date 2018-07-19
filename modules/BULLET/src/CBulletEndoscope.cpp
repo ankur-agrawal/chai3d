@@ -65,18 +65,30 @@ cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
   m_camera->setClippingPlanes(0.1, 100.0);
 
   // set stereo eye separation and focal length (applies only if stereo is enabled)
-  m_camera->setStereoEyeSeparation(0.02);
-  m_camera->setStereoFocalLength(20.0);
+  m_camera->setStereoEyeSeparation(1);
+  m_camera->setStereoFocalLength(200.0);
 
   m_camera->setFieldViewAngleDeg(30);
   // set vertical mirrored display mode
   m_camera->setMirrorVertical(false);
+
+  init_joint_angles.resize(4);
+  init_joint_angles[0] = yaw_joint;
+  init_joint_angles[1] = pitch_joint;
+  init_joint_angles[2] = insertion_length;
+  init_joint_angles[3] = roll_joint;
 
   joint_angles.resize(4);
   joint_angles[0] = yaw_joint;
   joint_angles[1] = pitch_joint;
   joint_angles[2] = insertion_length;
   joint_angles[3] = roll_joint;
+
+  last_joint_angles.resize(4);
+  new_joint_angles.resize(4);
+
+  last_joint_angles = joint_angles;
+  new_joint_angles = joint_angles;
 
   setCameraRotFromJoints();
   setCameraPosFromJoints();
@@ -90,6 +102,16 @@ cBulletEndoscope::cBulletEndoscope(cBulletWorld* a_world,
   // setMass(0.5);
   // estimateInertia();
   // buildDynamicModel();
+}
+
+void cBulletEndoscope::reset()
+{
+  joint_angles[0] = init_joint_angles[0];
+  joint_angles[1] = init_joint_angles[1];
+  joint_angles[2] = init_joint_angles[2];
+  joint_angles[3] = init_joint_angles[3];
+  setCameraRotFromJoints();
+  setCameraPosFromJoints();
 }
 
 void cBulletEndoscope::setCameraRotFromJoints()
@@ -172,12 +194,21 @@ void cBulletEndoscope::setJointsFromCameraRot()
 {
   cMatrix3d camera_in_rcm_rot;
   camera_in_rcm_rot = cMul(cTranspose(rcm_rot), camera_rot);
-  joint_angles[1] = atan2(camera_in_rcm_rot(1,0), sqrt(pow(camera_in_rcm_rot(0,0),2)+pow(camera_in_rcm_rot(2,0),2)));
-  joint_angles[0] = atan2(-camera_in_rcm_rot(0,0)/cos(joint_angles[1]), camera_in_rcm_rot(2,0)/cos(joint_angles[1]));
-  joint_angles[3] = atan2(-camera_in_rcm_rot(1,1)/cos(joint_angles[1]), camera_in_rcm_rot(1,2)/cos(joint_angles[1]));
-  joint_angles[2] = joint_angles[2];
-  if (abs(joint_angles[1])>1.5708)
+  last_joint_angles = joint_angles;
+  new_joint_angles[1] = atan2(camera_in_rcm_rot(1,0), sqrt(pow(camera_in_rcm_rot(0,0),2)+pow(camera_in_rcm_rot(2,0),2)));
+  new_joint_angles[0] = atan2(-camera_in_rcm_rot(0,0)/cos(joint_angles[1]), camera_in_rcm_rot(2,0)/cos(joint_angles[1]));
+  new_joint_angles[3] = atan2(-camera_in_rcm_rot(1,1)/cos(joint_angles[1]), camera_in_rcm_rot(1,2)/cos(joint_angles[1]));
+  new_joint_angles[2] = joint_angles[2];
+
+  if (abs(new_joint_angles[1])>1.5708)
     std::cout << joint_angles[0]  << '\t' << joint_angles[1] << '\t' << joint_angles[2]  << '\t' << joint_angles[3]  << '\t'<< '\n';
+
+  double alpha = 0.9;
+  joint_angles[0] = alpha*new_joint_angles[0] + (1-alpha)*last_joint_angles[0];
+  joint_angles[1] = alpha*new_joint_angles[1] + (1-alpha)*last_joint_angles[1];
+  joint_angles[2] = alpha*new_joint_angles[2] + (1-alpha)*last_joint_angles[2];
+  joint_angles[3] = alpha*new_joint_angles[3] + (1-alpha)*last_joint_angles[3];
+
 }
 
 void cBulletEndoscope::updateCmdFromROS(double dt){
