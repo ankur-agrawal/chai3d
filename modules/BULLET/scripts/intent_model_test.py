@@ -16,10 +16,10 @@ import matplotlib.pyplot as plt
 
 data = pd.read_csv('../bin/resources/data/0103.csv', delim_whitespace = True)
 
-intent = data.values[0:len(data):100,35]
-gripper_pos = data.values[0:len(data):100,36:39]
-gripper_rot = data.values[0:len(data):100,39:48]
-gripper_angle = data.values[0:len(data):100,48]
+intent = data.values[0:len(data):200,35]
+gripper_pos = data.values[0:len(data):200,36:39]
+gripper_rot = data.values[0:len(data):200,39:48]
+gripper_angle = data.values[0:len(data):200,48]
 
 args = np.argwhere(intent != 0)
 intent_relabel = intent[args]
@@ -32,7 +32,7 @@ intent_classes  = np_utils.to_categorical(intent_relabel-1, 4)
 
 input_matrix = np.hstack([gripper_pos_relabel, gripper_rot_relabel, gripper_angle_relabel])
 
-sequence_length = 10
+sequence_length = 3
 input = np.empty([len(intent_relabel)-sequence_length, sequence_length*13])
 for i in range(sequence_length):
   input[:,13*i:13*(i+1)] = input_matrix[sequence_length-i-1:len(intent_relabel)-i-1,:]
