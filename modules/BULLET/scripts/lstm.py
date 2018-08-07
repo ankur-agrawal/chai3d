@@ -6,9 +6,12 @@ import h5py
 from keras.models import Sequential
 from keras.models import model_from_json
 from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import TimeDistributed
 from keras.optimizers import sgd
 from keras.optimizers import Adam
 from keras.utils import np_utils
+# from keras.preprocessing.sequence import TimeSeriesGenerator
 from sklearn.utils import shuffle
 from sklearn.cross_validation import train_test_split
 import matplotlib.pyplot as plt
@@ -18,12 +21,15 @@ class Intent_Predictor(object):
     def __init__(self):
         self.model = Sequential()
     def load_model(self, sequence_length):
-        self.model.add(Dense(13*sequence_length,input_dim=13*sequence_length, activation='linear'))
-        self.model.add(Dense(2, activation = 'tanh'))
+        self.model.add(Dense(13,input_shape=(10,13), activation='linear'))
+        self.model.add(LSTM(5, return_sequences = True, dropout = 0.1))
+        self.model.add(LSTM(4, return_sequences = True, activation = 'softmax'))
+        # self.model.add(TimeDistributed(Dense(4)))
+        # self.model.add(Activation('softmax'))
         #self.model.add(Dense(5, activation = 'relu'))
         # self.model.add(Dense(50, activation = 'tanh'))
         # self.model.add(Dense(10, activation = 'tanh'))
-        self.model.add(Dense(4, kernel_initializer='zeros', bias_initializer='zeros', activation='softmax'))
+        # self.model.add(Dense(4, output_shape = (10,4), kernel_initializer='zeros', bias_initializer='zeros', activation='softmax'))
     def step_decay(epochs):
         initial_lrate = 0.000001
     	drop = 0.6
@@ -57,12 +63,17 @@ def load_data(Train_Files, Test_Files, time_steps, sequence_length):
 
         intent_classes_train  = np_utils.to_categorical(intent_relabel_train, 4)
         input_matrix_train = np.hstack([gripper_pos_relabel_train, gripper_rot_relabel_train, gripper_angle_relabel_train])
-        target_classes_train = intent_classes_train[sequence_length:len(intent_relabel_train),:]
 
-        input_train = np.empty([len(intent_relabel_train)-sequence_length, sequence_length*13])
+        # sequence = TimeseriesGenerator(input_matrix_train, intent_classes_train, length, sampling_rate=1, stride=2, start_index=0, end_index=None, shuffle=False, reverse=False)
+
+        # print sequence
+        # target_classes_train = intent_classes_train[sequence_length:len(intent_relabel_train),:]
+
+        input_train = np.empty([len(intent_relabel_train)-sequence_length, sequence_length,13])
+        target_classes_train = np.empty([len(intent_relabel_train)-sequence_length, sequence_length,4])
         for i in range(sequence_length):
-            input_train[:,13*i:13*(i+1)] = input_matrix_train[sequence_length-i-1:len(intent_relabel_train)-i-1,:]
-
+            input_train[:,i,:] = input_matrix_train[sequence_length-i-1:len(intent_relabel_train)-i-1,:]
+            target_classes_train[:,i,:] = intent_classes_train[sequence_length-i-1:len(intent_relabel_train)-i-1,:]
         if count_train ==0:
             input_concatenate_train = input_train
             target_classes_concatenate_train = target_classes_train
@@ -94,11 +105,13 @@ def load_data(Train_Files, Test_Files, time_steps, sequence_length):
 
         intent_classes_test  = np_utils.to_categorical(intent_relabel_test, 4)
         input_matrix_test = np.hstack([gripper_pos_relabel_test, gripper_rot_relabel_test, gripper_angle_relabel_test])
-        target_classes_test = intent_classes_test[sequence_length:len(intent_relabel_test),:]
+        # target_classes_test = intent_classes_test[sequence_length:len(intent_relabel_test),:]
 
-        input_test = np.empty([len(intent_relabel_test)-sequence_length, sequence_length*13])
+        input_test = np.empty([len(intent_relabel_test)-sequence_length, sequence_length,13])
+        target_classes_test = np.empty([len(intent_relabel_test)-sequence_length, sequence_length,4])
         for i in range(sequence_length):
-            input_test[:,13*i:13*(i+1)] = input_matrix_test[sequence_length-i-1:len(intent_relabel_test)-i-1,:]
+            input_test[:,i,:] = input_matrix_test[sequence_length-i-1:len(intent_relabel_test)-i-1,:]
+            target_classes_test[:,i,:] = intent_classes_test[sequence_length-i-1:len(intent_relabel_test)-i-1,:]
 
         if count_test ==0:
             input_concatenate_test = input_test
@@ -110,16 +123,16 @@ def load_data(Train_Files, Test_Files, time_steps, sequence_length):
         count_test = count_test+1
 
     print "Testing Data Size"
-    print "Inputs:" , input_concatenate_test.shape,
+    print "Inputs:" , input_concatenate_test.shape
     print "Targets:", target_classes_concatenate_test.shape
     X_test,Y_test = shuffle(input_concatenate_test,target_classes_concatenate_test, random_state=2)
 
     return X_train, Y_train, X_test, Y_test
 
-
 train_files = ['0101', '0102','0105', '0202', '0205', '0204']
 test_files = ['0104', '0203']
 
+# load_data(train_files, test_files, 100, 10)
 
 x_train, y_train, x_test, y_test = load_data(train_files, test_files, 100, 10)
 
@@ -130,9 +143,10 @@ nn_model.compile_model()
 
 # X_train, X_test, Y_train, Y_test = train_test_split(Input, Target, test_size=0.2, random_state=4)
 
-history = nn_model.model.fit(x_train, y_train , validation_data=(x_test, y_test), epochs = 1500, batch_size = 100)
+history = nn_model.model.fit(x_train, y_train , validation_data=(x_test, y_test), epochs = 200, batch_size = 50)
 scores = nn_model.model.evaluate(x_test, y_test, verbose=0)
 print("Accuracy: %.2f%%" % (scores[1]*100))
+
 
 
 print(history.history.keys())
@@ -152,12 +166,3 @@ plt.ylabel('loss')
 plt.xlabel('epoch')
 plt.legend(['train', 'validation'], loc='upper left')
 plt.show()
-
-model_json = nn_model.model.to_json()
-with open("/home/ankur/chai3d/modules/BULLET/bin/resources/nn_models/model01.json", "w") as json_file:
-    json_file.write(model_json)
-
-nn_model.model.save_weights("/home/ankur/chai3d/modules/BULLET/bin/resources/nn_models/model01.h5")
-print("Model Saved to Disk Sucessfully!")
-
-    # print len(intent_relabel), input
