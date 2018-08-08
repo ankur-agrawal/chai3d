@@ -41,6 +41,7 @@
 # common settings required to build examples
 find_package (GLFW REQUIRED)
 find_package (Boost COMPONENTS program_options REQUIRED)
+find_package ( OpenCV REQUIRED)
 include_directories (${GLFW_INCLUDE_DIRS})
 
 # build all targets
@@ -48,7 +49,7 @@ foreach (example 01-bullet-cube 02-bullet-pool 03-bullet-mesh 04-bullet-tool 05-
 
   file (GLOB source ${example}/*.cpp)
   add_executable (${example} ${source})
-  target_link_libraries (${example} ${CHAI3D-BULLET_LIBRARIES} ${CHAI3D_LIBRARIES} ${GLFW_LIBRARIES} ${Boost_LIBRARIES} openhmd)
+  target_link_libraries (${example} ${CHAI3D-BULLET_LIBRARIES} ${CHAI3D_LIBRARIES} ${GLFW_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBS} openhmd)
 
   # OS specific adjustments
   if (${CMAKE_SYSTEM_NAME} MATCHES Darwin)

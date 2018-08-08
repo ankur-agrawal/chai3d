@@ -54,6 +54,9 @@ using namespace std;
 //---------------------------------------------------------------------------
 
 #include <openhmd/openhmd.h>
+#include <opencv2/core/core.hpp>        // Basic OpenCV structures (cv::Mat)
+#include <opencv2/highgui/highgui.hpp>  // Video write
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include <fstream>
 
@@ -73,7 +76,6 @@ using namespace std;
 cStereoMode stereoMode = C_STEREO_PASSIVE_LEFT_RIGHT;
 
 // fullscreen mode
-bool fullscreen = false;
 std::vector<bool> fullscreens;
 
 // mirrored display
@@ -162,6 +164,7 @@ cThread* g_hapticsThreads[10];
 // bullet simulation thread
 cThread* g_bulletSimThread;
 cThread* g_dataCollectionThread;
+cThread* g_videoRecorderThread;
 
 // a handle to window display context
 GLFWwindow* g_window = NULL;
@@ -206,6 +209,13 @@ int target_cylinder=12;
 bool g_game_over = false;
 
 cShaderProgramPtr programShader;
+cFrameBuffer* frame_buffer = new cFrameBuffer();
+cImagePtr image = cImage::create();
+cv::VideoWriter outputVideo;
+cv::Mat immatrix;
+static int format = cv::VideoWriter::fourcc('M','J','P','G');
+double fps = 37.0;
+bool graphicsInitialized = false;
 
 
 //---------------------------------------------------------------------------
@@ -482,7 +492,7 @@ void Sim::set_sim_params(cHapticDeviceInfo &a_hInfo, Device* a_dev){
         strcmp(a_hInfo.m_modelName.c_str(), "MTM-L") == 0 || strcmp(a_hInfo.m_modelName.c_str(), "MTML") == 0)
     {
         std::cout << "Device " << a_hInfo.m_modelName << " DETECTED, CHANGING BUTTON AND WORKSPACE MAPPING" << std::endl;
-        m_workspaceScaleFactor = 10.0;
+        m_workspaceScaleFactor = 20.0;
         K_lh = K_lh/3;
         act_1_btn     =  1;
         act_2_btn     =  2;
@@ -896,6 +906,8 @@ int main(int argc, char* argv[])
     //
     // hmd = ohmd_list_open_device(ctx, 0);
 
+    std::string filename = "/home/ankur/Videos/trial.avi";
+    outputVideo.open(filename, format, fps, cv::Size(1366, 768), true);
 
 
     //-----------------------------------------------------------------------
@@ -998,6 +1010,8 @@ int main(int argc, char* argv[])
           glfwTerminate();
           return 1;
       }
+
+      glfwSetWindowMonitor(g_windows[i], NULL, x, y, w, h, mode->refreshRate);
 
       // get width and height of window
       glfwGetWindowSize(g_windows[i], &g_widths[i], &g_heights[i]);
@@ -1263,6 +1277,7 @@ int main(int argc, char* argv[])
 
     // main graphic loop
     bool flag =1;
+    frame_buffer->setup(g_endoscope->m_camera, g_widths[0], g_heights[0], true, true);
     while (flag)
     {
         // get width and height of window
@@ -1295,6 +1310,8 @@ int main(int argc, char* argv[])
         // close window
         glfwDestroyWindow(g_windows[i]);
     }
+
+    outputVideo.release();
 
     // terminate GLFW library
     glfwTerminate();
@@ -1333,6 +1350,7 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
     // option - exit
     else if ((a_key == GLFW_KEY_ESCAPE) || (a_key == GLFW_KEY_Q))
     {
+        outputVideo.release();
         glfwSetWindowShouldClose(a_window, GLFW_TRUE);
     }
 
@@ -1359,7 +1377,7 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
         if (fullscreens[index])
         {
             // glfwSetWindowSize(a_window, mode->width, mode->height);
-            glfwSetWindowMonitor(a_window, monitor, pos_x, pos_y, mode->width, mode->height, mode->refreshRate);
+            glfwSetWindowMonitor(a_window, NULL, pos_x, pos_y, mode->width, mode->height, mode->refreshRate);
             // glfwSwapInterval(g_swapInterval);
         }
         else
@@ -1614,14 +1632,14 @@ void updateGraphics(int i)
 
     if (i == 0)
     {
-      g_labelSubtasks->setText("SUBTASK: " + SubtaskStrings[g_subtask]);
-      g_labelSubtasks->setLocalPos((int)(0.5 * (g_widths[i] - g_labelSubtasks->getWidth())),
+       g_labelSubtasks->setText("SUBTASK: " + SubtaskStrings[g_subtask]);
+       g_labelSubtasks->setLocalPos((int)(0.5 * (g_widths[i] - g_labelSubtasks->getWidth())),
                                    g_heights[i] - g_labelSubtasks->getHeight() - 20);
 
        // update haptic and graphic rate data
-       g_labelTimes->setText("Wall Time: " + cStr(g_clockWorld.getCurrentTimeSeconds(),2) + " s" +
-                           + " / "+" Simulation Time: " + cStr(g_bulletWorld->getSimulationTime(),2) + " s");
-       g_labelRates->setText(cStr(g_freqCounterGraphics.getFrequency(), 0) + " Hz / " + cStr(g_freqCounterHaptics.getFrequency(), 0) + " Hz");
+       g_labelTimes->setText("CPU Time: " + cStr(g_clockWorld.getCurrentTimeSeconds(),4) + " s" +
+                           + " / "+" Simulation Time: " + cStr(g_bulletWorld->getSimulationTime(),4) + " s");
+       g_labelRates->setText("Graphic Update: "+cStr(g_freqCounterGraphics.getFrequency(), 0) + " Hz / Haptic Update: " + cStr(g_freqCounterHaptics.getFrequency(), 0) + " Hz");
        g_labelModes->setText("MODE: " + g_coordApp->m_mode_str);
        g_labelBtnAction->setText(" : " + g_btn_action_str);
 
@@ -1635,38 +1653,52 @@ void updateGraphics(int i)
        g_labelRates->setLocalPos((int)(0.5 * (g_widths[i] - g_labelRates->getWidth())), 10);
        g_labelModes->setLocalPos((int)(0.5 * (g_widths[i] - g_labelModes->getWidth())), 50);
        g_labelBtnAction->setLocalPos((int)(0.5 * (g_widths[i] - g_labelModes->getWidth()) + g_labelModes->getWidth()), 50);
+
+       g_endoscope->m_camera->setStereoMode(stereoMode);
+       // update shadow maps (if any)
+       g_bulletWorld->updateShadowMaps(false, false);
+
+       if (g_game_over)
+       {
+         g_labelGameOver->setText("Congratulations!!\nGame Completed.\nPress q or esc to exit");
+         g_labelGameOver->setLocalPos((int)(0.5 * (g_widths[i] - g_labelGameOver->getWidth())),0.5 * (g_heights[i] - g_labelGameOver->getHeight()));
+       }
+
+       // render world
+       g_endoscope->m_camera->renderView(g_widths[i], g_heights[i]);
+
+       frame_buffer->renderView();
+       frame_buffer->copyImageBuffer(image);
+       image->flipHorizontal();
+       immatrix = cv::Mat(image->getHeight(), image->getWidth(), CV_8UC4,image->getData());
+       cv::cvtColor(immatrix, immatrix, cv::COLOR_BGRA2RGB);
+       outputVideo.write(immatrix);
+
     }
     else
     {
+      g_labelTimes->setText("");
       g_labelSubtasks->setText("");
       g_labelRates->setText("");
       g_labelModes->setText("");
-     g_labelBtnAction->setText("");
+      g_labelBtnAction->setText("");
+      for (int j = 0 ; j < g_coordApp->m_num_devices ; j++){
+          g_labelDevRates[j]->setText("");
+      }
+
+      g_endoscope->m_camera->setStereoMode(stereoMode);
+      // update shadow maps (if any)
+      g_bulletWorld->updateShadowMaps(false, false);
+
+      if (g_game_over)
+      {
+        g_labelGameOver->setText("Congratulations!!\nGame Completed.\nPress q or esc to exit");
+        g_labelGameOver->setLocalPos((int)(0.5 * (g_widths[i] - g_labelGameOver->getWidth())),0.5 * (g_heights[i] - g_labelGameOver->getHeight()));
+      }
+
+      // render world
+      g_endoscope->m_camera->renderView(g_widths[i], g_heights[i]);
     }
-
-    g_endoscope->m_camera->setStereoMode(stereoMode);
-    // update shadow maps (if any)
-    g_bulletWorld->updateShadowMaps(false, false);
-
-    if (g_game_over)
-    {
-
-      // // load an texture map
-      // bool fileload;
-      // fileload = frontground->loadFromFile(RESOURCE_PATH("../resources/images/game_over.png"));
-      //
-      // if (!fileload)
-      // {
-      //     cout << "Error - Image failed to load correctly." << endl;
-      // }
-      //
-      // g_endoscope->m_camera->m_frontLayer->addChild(frontground);
-      g_labelGameOver->setText("Congratulations!!\nGame Completed.\nPress q or esc to exit");
-      g_labelGameOver->setLocalPos((int)(0.5 * (g_widths[i] - g_labelGameOver->getWidth())),0.5 * (g_heights[i] - g_labelGameOver->getHeight()));
-    }
-
-    // render world
-    g_endoscope->m_camera->renderView(g_widths[i], g_heights[i]);
 
     // wait until all GL commands are completed
     glFinish();
@@ -1971,7 +2003,8 @@ void collectData(void* a_arg)
       // dataFile << '\n';
       // first_row = false;
     // }
-    dataFile << g_clockWorld.getCurrentTimeSeconds() << '\t';
+    dataFile << cStr(g_clockWorld.getCurrentTimeSeconds(),4) << '\t';
+    dataFile << cStr(g_bulletWorld->getSimulationTime(),4) << '\t';
     for (int i=0;i<4;i++)
     {
       dataFile << g_endoscope->joint_angles[i] << '\t';

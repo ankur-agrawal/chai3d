@@ -1,16 +1,17 @@
 cols:
-  [1]     TimeStamp
-  [2-5]   ECM_Joint_Angles
-  [6-8]   Camera_Pos
-  [9-17]  Camera_Rot
-  [18-20] Rcm_Pos
-  [21-29] Rcm_Rot
-  [30-32] Ring_Pos
-  [33-35] Target_Pos
-  [36]    Subtask
-  [37-39] Gripper_Pos
-  [40-48] Gripper_Rot
-  [49]    Gripper_Angle
+  [1]     CPU TimeStamp
+  [2]     Simulation TimeStamp
+  [3-6]   ECM_Joint_Angles
+  [7-9]   Camera_Pos
+  [10-18]  Camera_Rot
+  [19-21] Rcm_Pos
+  [22-30] Rcm_Rot
+  [31-33] Ring_Pos
+  [34-36] Target_Pos
+  [37]    Subtask
+  [38-40] Gripper_Pos
+  [41-49] Gripper_Rot
+  [50]    Gripper_Angle
 
 //Positions are x, y and z
 //Orientation is specified in rotation matrix with each element being row wise.
